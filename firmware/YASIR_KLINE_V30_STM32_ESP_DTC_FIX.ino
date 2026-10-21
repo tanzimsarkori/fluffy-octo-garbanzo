@@ -188,20 +188,29 @@ void readDTC() {
     return;
   }
 
-  // KWP response has service 0x58 at serviceOffset(). The DTC bytes
-  // follow the service and end before the checksum; do not treat 0x58
-  // itself as a DTC count.
-  const uint16_t dataStart = (uint16_t)si + 1;
-  const uint16_t dataBytes = rxLen - dataStart - 1;
-  if (dataBytes % 3 != 0) {
-    Serial.print("UNEXPECTED DTC PAYLOAD LENGTH: ");
-    Serial.println(dataBytes);
+  // Siemens response example: 85 F1 11 58 01 05 05 E7 D1
+  // serviceOffset=3, 0x58=response service, 0x01=count,
+  // then each DTC record is 3 bytes (code high, code low, status).
+  if (rx[si] != 0x58 || rxLen < (uint16_t)(si + 3)) {
+    Serial.println("UNEXPECTED DTC RESPONSE HEADER");
     printData("DTC RAW FRAME: ", rx, rxLen);
     sendWebStatus("DTC_READ_FAILED_UNEXPECTED_RESPONSE_FORMAT");
     return;
   }
 
-  uint8_t count = (uint8_t)(dataBytes / 3);
+  uint8_t count = rx[si + 1];
+  const uint16_t dataStart = (uint16_t)si + 2;
+  const uint16_t availableBytes = rxLen - dataStart - 1;
+  if (availableBytes < (uint16_t)count * 3) {
+    Serial.print("INCOMPLETE DTC RECORDS: count=");
+    Serial.print(count);
+    Serial.print(" bytes=");
+    Serial.println(availableBytes);
+    printData("DTC RAW FRAME: ", rx, rxLen);
+    sendWebStatus("DTC_READ_FAILED_INCOMPLETE_RECORDS");
+    return;
+  }
+
   Serial.print("DTC COUNT: "); Serial.println(count);
   sendWebDTC(count);
 
@@ -209,7 +218,7 @@ void readDTC() {
     Serial.println("NO DTC CODES REPORTED BY ECU");
   } else {
     for (uint8_t i = 0; i < count; ++i) {
-      uint16_t j = dataStart + i * 3;
+      uint16_t j = dataStart + (uint16_t)i * 3;
       Serial.print("DTC "); Serial.print(i + 1); Serial.print(": ");
       hexByte(rx[j]); Serial.print(' '); hexByte(rx[j+1]);
       Serial.print(" STATUS: "); hexByte(rx[j+2]);
@@ -354,9 +363,9 @@ void hexByteJson(uint8_t b) { if (b < 16) Serial2.print('0'); Serial2.print(b, H
 
 void sendWebDTC(uint8_t count) {
   Serial2.print(F("{\"type\":\"dtc\",\"count\":")); Serial2.print(count); Serial2.print(F(",\"codes\":["));
-  uint16_t dataStart = (uint16_t)serviceOffset(rx) + 1;
+  uint16_t dataStart = (uint16_t)serviceOffset(rx) + 2;
   for (uint8_t i=0; i<count; ++i) {
-    uint16_t j = dataStart + i * 3; if (j+2 >= rxLen-1) break;
+    uint16_t j = dataStart + (uint16_t)i * 3; if (j+2 >= rxLen-1) break;
     if (i) Serial2.print(',');
     Serial2.print(F("{\"code\":\"")); hexByteJson(rx[j]); Serial2.print(' '); hexByteJson(rx[j+1]);
     Serial2.print(F("\",\"status\":\"")); hexByteJson(rx[j+2]); Serial2.print(F("\"}"));
