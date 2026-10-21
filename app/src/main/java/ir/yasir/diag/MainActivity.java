@@ -43,7 +43,7 @@ public class MainActivity extends Activity {
     status.setTextColor(teal);
     content.addView(status);
     button("اتصال به دستگاه", () -> connect());
-    button("اتصال به ECU", () -> send("!1"));
+    button("اتصال به ECU", () -> send("1"));
     rpm = field("دور موتور");
     coolant = field("دمای آب");
     intake = field("دمای هوای ورودی");
