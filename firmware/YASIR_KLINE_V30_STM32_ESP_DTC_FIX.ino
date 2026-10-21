@@ -12,9 +12,10 @@ uint32_t lastWebTelemetry = 0;
 bool espCommandArmed = false;
 void sendWebDTC(uint8_t count);
 void sendWebStatus(const char *message) {
-  Serial2.print(F("{\"type\":\"status\",\"message\":\""));
+  // Use plain string literals for compatibility with older STM32 Arduino cores.
+  Serial2.print("{\"type\":\"status\",\"message\":\"");
   Serial2.print(message);
-  Serial2.println(F("\"}"));
+  Serial2.println("\"}");
 }
 // V22: quiet live panel, capture and compare full 93-byte blocks.
 bool verboseKline = true;
