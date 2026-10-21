@@ -103,7 +103,12 @@ public class MainActivity extends Activity {
       if(out == null) {setStatus("ابتدا به ESP-01 متصل شوید");return;}
       out.write(command + "\n");
       out.flush();
-    } catch(Exception e) {setStatus("خطای ارسال: " + e.getMessage());}
+    } catch(Exception e) {
+      String detail = e.getMessage();
+      if(detail == null || detail.trim().isEmpty()) detail = "سوکت بسته شده یا ارتباط TCP قطع است";
+      setStatus("خطای ارسال (" + e.getClass().getSimpleName() + "): " + detail);
+      closeSocket();
+    }
   }
 
   void connect() {
@@ -123,8 +128,13 @@ public class MainActivity extends Activity {
           final String received = line;
           ui.post(() -> parse(received));
         }
+        if(running) setStatus("ارتباط TCP توسط دستگاه بسته شد");
       } catch(Exception e) {
-        if(running)setStatus("اتصال برقرار نشد: " + e.getMessage());
+        if(running) {
+          String detail = e.getMessage();
+          if(detail == null || detail.trim().isEmpty()) detail = e.getClass().getSimpleName();
+          setStatus("خطای ارتباط: " + detail);
+        }
       } finally {closeSocket();}
     }).start();
   }
