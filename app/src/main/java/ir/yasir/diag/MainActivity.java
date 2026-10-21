@@ -43,7 +43,7 @@ public class MainActivity extends Activity {
     status.setTextColor(teal);
     content.addView(status);
     button("اتصال به دستگاه", () -> connect());
-    button("اتصال به ECU", () -> send("1"));
+    button("اتصال به ECU", () -> send("!1"));
     rpm = field("دور موتور");
     coolant = field("دمای آب");
     intake = field("دمای هوای ورودی");
@@ -161,7 +161,23 @@ public class MainActivity extends Activity {
         }
         dtc.setText(b.toString());
       } else if(type.equals("status")) {
-        setStatus("وضعیت: " + j.optString("message"));
+        String message = j.optString("message", "نامشخص");
+        if (message.equals("DTC_READ_OK")) {
+          setStatus("خواندن خطاها با موفقیت انجام شد");
+        } else if (message.equals("DTC_READ_OK_NO_CODES")) {
+          dtc.setText("هیچ خطایی در ECU ثبت نشده است.");
+          setStatus("خواندن خطاها موفق بود؛ خطایی ثبت نشده");
+        } else if (message.startsWith("DTC_READ_FAILED")) {
+          setStatus("خواندن خطا ناموفق بود: " + message);
+        } else if (message.equals("DTC_CLEAR_ACCEPTED_RECHECKING")) {
+          setStatus("فرمان پاک‌کردن پذیرفته شد؛ در حال بررسی مجدد خطاها...");
+        } else if (message.startsWith("DTC_CLEAR_FAILED")) {
+          setStatus("پاک‌کردن خطا تأیید نشد: " + message);
+        } else if (message.equals("DTC_CLEARING")) {
+          setStatus("در حال پاک‌کردن خطاها...");
+        } else {
+          setStatus("وضعیت: " + message);
+        }
       }
     } catch(JSONException ignored) {}
   }
