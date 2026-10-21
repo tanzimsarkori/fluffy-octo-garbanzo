@@ -116,26 +116,51 @@ public class MainActivity extends Activity {
     running = true;
     setStatus("در حال اتصال به E-MAX ...");
     new Thread(() -> {
-      try {
-        Socket s = new Socket();
-        s.connect(new InetSocketAddress(host,port),4500);
-        socket = s;
-        synchronized(this) {out = new BufferedWriter(new OutputStreamWriter(s.getOutputStream(),"UTF-8"));}
-        setStatus("به ESP-01 متصل شد — اتصال به ECU را بزنید");
-        BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream(),"UTF-8"));
-        String line;
-        while(running && (line=br.readLine())!=null) {
-          final String received = line;
-          ui.post(() -> parse(received));
+      while (running) {
+        Socket s = null;
+        try {
+          s = new Socket();
+          s.setKeepAlive(true);
+          s.setTcpNoDelay(true);
+          s.connect(new InetSocketAddress(host, port), 4500);
+          if (!running) { try { s.close(); } catch(Exception ignored) {} break; }
+
+          socket = s;
+          synchronized (this) {
+            out = new BufferedWriter(new OutputStreamWriter(s.getOutputStream(), "UTF-8"));
+          }
+          setStatus("به ESP-01 متصل شد — اتصال به ECU را بزنید");
+
+          BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream(), "UTF-8"));
+          String line;
+          while (running && (line = br.readLine()) != null) {
+            final String received = line;
+            ui.post(() -> parse(received));
+          }
+          if (running) setStatus("ارتباط TCP قطع شد؛ تلاش برای اتصال مجدد...");
+        } catch (Exception e) {
+          if (running) {
+            String detail = e.getMessage();
+            if (detail == null || detail.trim().isEmpty()) detail = e.getClass().getSimpleName();
+            setStatus("ارتباط قطع شد؛ اتصال مجدد... (" + detail + ")");
+          }
+        } finally {
+          synchronized (this) {
+            if (socket == s) {
+              try { if (socket != null) socket.close(); } catch(Exception ignored) {}
+              socket = null;
+              out = null;
+            } else {
+              try { if (s != null) s.close(); } catch(Exception ignored) {}
+            }
+          }
         }
-        if(running) setStatus("ارتباط TCP توسط دستگاه بسته شد");
-      } catch(Exception e) {
-        if(running) {
-          String detail = e.getMessage();
-          if(detail == null || detail.trim().isEmpty()) detail = e.getClass().getSimpleName();
-          setStatus("خطای ارتباط: " + detail);
+
+        if (running) {
+          try { Thread.sleep(1200); }
+          catch (InterruptedException ignored) { Thread.currentThread().interrupt(); break; }
         }
-      } finally {closeSocket();}
+      }
     }).start();
   }
 
