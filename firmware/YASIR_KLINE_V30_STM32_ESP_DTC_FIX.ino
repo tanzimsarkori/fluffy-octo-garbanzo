@@ -1,0 +1,558 @@
+#include <Arduino.h>
+
+// YASIR K-LINE V30 DTC FIX - based on proven V28 firmware
+// Serial: PA9 TX / PA10 RX, 115200
+// Serial3: PB10 TX / PB11 RX, 10400
+
+const uint32_t K_BAUD = 10400;
+const uint32_t RESPONSE_TIMEOUT_MS = 1100;
+// ESP-01 UART: STM32 PA2 (USART2 TX) -> ESP RX, STM32 PA3 (USART2 RX) <- ESP TX
+const uint32_t ESP_BAUD = 115200;
+uint32_t lastWebTelemetry = 0;
+bool espCommandArmed = false;
+void sendWebDTC(uint8_t count);
+void sendWebStatus(const char *message) {
+  Serial2.print(F("{\"type\":\"status\",\"message\":\""));
+  Serial2.print(message);
+  Serial2.println(F("\"}"));
+}
+// V22: quiet live panel, capture and compare full 93-byte blocks.
+bool verboseKline = true;
+bool livePanel = false;
+bool previousReady = false;
+uint8_t previousBlock[93];
+uint8_t baselineBlock[93];
+bool baselineReady = false;
+uint32_t lastPanel = 0;
+uint8_t rx[192];
+uint16_t rxLen = 0;
+bool connected = false;
+
+void hexByte(uint8_t b) {
+  if (b < 16) Serial.print('0');
+  Serial.print(b, HEX);
+}
+void printData(const char *tag, const uint8_t *p, uint16_t n) {
+  Serial.print(tag);
+  for (uint16_t i = 0; i < n; ++i) {
+    hexByte(p[i]); Serial.print(' ');
+  }
+  Serial.println();
+}
+uint8_t sum8(const uint8_t *p, uint16_t n) {
+  uint8_t s = 0;
+  for (uint16_t i = 0; i < n; ++i) s += p[i];
+  return s;
+}
+// KWP frames: short 8N or extended 80 target source LEN payload checksum.
+// TNM's 21 01 response starts: 80 F1 11 5F 61 01 ...
+// 0x5F is a 95-byte payload length, NOT the service byte.
+int frameLengthAt(const uint8_t *p, uint16_t n) {
+  if (!n) return 0;
+  if ((p[0] & 0xF0) != 0x80) return -1;
+  uint8_t payload = p[0] & 0x0F;
+  if (payload) return 3 + payload + 1;
+  if (n < 4) return 0;
+  if (!p[3]) return -1;
+  return 4 + p[3] + 1;
+}
+
+uint8_t serviceOffset(const uint8_t *p) { return p[0] == 0x80 ? 4 : 3; }
+
+bool exchange(const uint8_t *tx, uint16_t txLen,
+              uint8_t expectedService, uint32_t timeoutMs = RESPONSE_TIMEOUT_MS) {
+  rxLen = 0;
+  while (Serial3.available()) Serial3.read();
+  if (verboseKline) printData("TX: ", tx, txLen);
+  Serial3.write(tx, txLen);
+  Serial3.flush();
+
+  uint8_t stream[256];
+  uint16_t used = 0;
+  uint32_t started = millis();
+  uint32_t lastByte = started;
+  bool partialEchoPrinted = false;
+
+  while ((uint32_t)(millis() - started) < timeoutMs) {
+    while (Serial3.available()) {
+      uint8_t c = (uint8_t)Serial3.read();
+      if (used < sizeof(stream)) stream[used++] = c;
+      else {
+        Serial.println("STREAM OVERFLOW - RESYNC");
+        used = 0;
+      }
+      lastByte = millis();
+    }
+
+    while (used) {
+      int len = frameLengthAt(stream, used);
+      if (len < 0 || len > (int)sizeof(stream)) {
+        for (uint16_t j = 1; j < used; ++j) stream[j-1] = stream[j];
+        --used;
+        continue;
+      }
+      if (len == 0 || (uint16_t)len > used) break;
+      if (sum8(stream, len-1) != stream[len-1]) {
+        if (verboseKline) Serial.println("BAD CHECKSUM / RESYNC");
+        for (uint16_t j = 1; j < used; ++j) stream[j-1] = stream[j];
+        --used;
+        continue;
+      }
+      bool echo = (len == txLen);
+      if (echo) for (uint16_t j = 0; j < txLen; ++j)
+        if (stream[j] != tx[j]) { echo = false; break; }
+      if (echo) {
+        if (verboseKline) Serial.println("ECHO IGNORED");
+      } else {
+        uint8_t si = serviceOffset(stream);
+        if (len >= si+2 && stream[1] == 0xF1 && stream[2] == 0x11) {
+          uint8_t service = stream[si];
+          bool positive = service == expectedService;
+          bool negative = service == 0x7F && len >= si+4 &&
+                          stream[si+1] == (uint8_t)(expectedService - 0x40);
+          if (positive || negative) {
+            if (len > (int)sizeof(rx)) {
+              Serial.println("REPLY EXCEEDS RX BUFFER");
+              return false;
+            }
+            rxLen = len;
+            for (uint16_t j = 0; j < rxLen; ++j) rx[j] = stream[j];
+            if (verboseKline) { Serial.print("FRAME LENGTH: "); Serial.println(rxLen); printData("FRAME: ", rx, rxLen); }
+            if (negative) {
+              Serial.print("NEGATIVE RESPONSE NRC: ");
+              hexByte(rx[si+2]); Serial.println();
+              return false;
+            }
+            if (verboseKline) Serial.println("ECU RESPONSE VALID");
+            return true;
+          }
+        }
+        if (verboseKline) printData("OTHER FRAME: ", stream, len);
+      }
+      for (uint16_t j = len; j < used; ++j) stream[j-len] = stream[j];
+      used -= len;
+    }
+    // A full extended frame at 10400 baud takes ~100ms. Do not use
+    // the old 22ms gap as a reason to discard a valid incomplete frame.
+    if (used && (uint32_t)(millis()-lastByte) > 130 && !partialEchoPrinted) {
+      if (verboseKline) printData("PARTIAL (WAITING): ", stream, used);
+      partialEchoPrinted = true;
+    }
+  }
+  if (used && verboseKline) printData("INCOMPLETE AT TIMEOUT: ", stream, used);
+  Serial.println("ECU RESPONSE TIMEOUT");
+  return false;
+}
+
+void connectECU() {
+  connected = false;
+  livePanel = false; previousReady = false; baselineReady = false;
+  Serial.println("CONNECTING ECU...");
+  Serial3.end();
+  pinMode(PB10, OUTPUT);
+  digitalWrite(PB10, HIGH);
+  delay(350);
+  digitalWrite(PB10, LOW);
+  delay(25);
+  digitalWrite(PB10, HIGH);
+  delay(25);
+  Serial3.begin(K_BAUD);
+  delay(5);
+  const uint8_t initCmd[] = {0xC1,0x33,0xF1,0x81,0x66};
+  connected = exchange(initCmd, sizeof(initCmd), 0xC1, 1200);
+  Serial.println(connected ? "ECU CONNECTED" : "ECU CONNECTION FAILED");
+}
+
+void readDTC() {
+  if (!connected) {
+    Serial.println("CONNECT ECU FIRST (1)");
+    sendWebStatus("DTC_READ_FAILED_NOT_CONNECTED");
+    return;
+  }
+
+  Serial.println("READING DTC...");
+  sendWebStatus("DTC_READING");
+
+  const uint8_t cmd[] = {0x84,0x11,0xF1,0x18,0x00,0xFF,0x00,0x9D};
+  if (!exchange(cmd, sizeof(cmd), 0x58, 1400)) {
+    Serial.println("DTC READ FAILED");
+    sendWebStatus("DTC_READ_FAILED_ECU_NO_VALID_RESPONSE");
+    return;
+  }
+
+  const uint8_t si = serviceOffset(rx);
+  if (rxLen <= si + 1) {
+    Serial.println("SHORT DTC FRAME");
+    sendWebStatus("DTC_READ_FAILED_SHORT_FRAME");
+    return;
+  }
+
+  // KWP response has service 0x58 at serviceOffset(). The DTC bytes
+  // follow the service and end before the checksum; do not treat 0x58
+  // itself as a DTC count.
+  const uint16_t dataStart = (uint16_t)si + 1;
+  const uint16_t dataBytes = rxLen - dataStart - 1;
+  if (dataBytes % 3 != 0) {
+    Serial.print("UNEXPECTED DTC PAYLOAD LENGTH: ");
+    Serial.println(dataBytes);
+    printData("DTC RAW FRAME: ", rx, rxLen);
+    sendWebStatus("DTC_READ_FAILED_UNEXPECTED_RESPONSE_FORMAT");
+    return;
+  }
+
+  uint8_t count = (uint8_t)(dataBytes / 3);
+  Serial.print("DTC COUNT: "); Serial.println(count);
+  sendWebDTC(count);
+
+  if (count == 0) {
+    Serial.println("NO DTC CODES REPORTED BY ECU");
+  } else {
+    for (uint8_t i = 0; i < count; ++i) {
+      uint16_t j = dataStart + i * 3;
+      Serial.print("DTC "); Serial.print(i + 1); Serial.print(": ");
+      hexByte(rx[j]); Serial.print(' '); hexByte(rx[j+1]);
+      Serial.print(" STATUS: "); hexByte(rx[j+2]);
+      if (rx[j] == 0x05 && rx[j+1] == 0x05) Serial.print(" (P0505 IDLE CONTROL)");
+      if (rx[j] == 0x02 && rx[j+1] == 0x30) Serial.print(" (FUEL PUMP RELAY - TESTED)");
+      Serial.println();
+    }
+  }
+  sendWebStatus(count == 0 ? "DTC_READ_OK_NO_CODES" : "DTC_READ_OK");
+}
+
+void clearDTC() {
+  if (!connected) {
+    Serial.println("CONNECT ECU FIRST (1)");
+    sendWebStatus("DTC_CLEAR_FAILED_NOT_CONNECTED");
+    return;
+  }
+  Serial.println("CLEAR DTC (TNM CAPTURED COMMAND)...");
+  sendWebStatus("DTC_CLEARING");
+
+  const uint8_t cmd[] = {0x83,0x11,0xF1,0x14,0xFF,0x00,0x98};
+  if (exchange(cmd, sizeof(cmd), 0x54, 1500) &&
+      rxLen == 7 && rx[4] == 0xFF && rx[5] == 0x00) {
+    Serial.println("CLEAR COMMAND ACCEPTED BY ECU");
+    sendWebStatus("DTC_CLEAR_ACCEPTED_RECHECKING");
+    delay(300);
+    readDTC();
+  } else {
+    Serial.println("CLEAR NOT CONFIRMED");
+    sendWebStatus("DTC_CLEAR_FAILED_ECU_DID_NOT_CONFIRM");
+  }
+}
+
+// Read-only local identifier used by TNM for the long Siemens data block.
+void readSiemensBlock() {
+  if (!connected) { Serial.println("CONNECT ECU FIRST (1)"); return; }
+  const uint8_t cmd[] = {0x82,0x11,0xF1,0x21,0x01,0xA6};
+  Serial.println("SIEMENS 21 01 LONG BLOCK...");
+  if (!exchange(cmd, sizeof(cmd), 0x61, 1800)) {
+    Serial.println("BLOCK READ FAILED - NO VALUES ASSUMED");
+    return;
+  }
+  uint8_t s = serviceOffset(rx);
+  if (rxLen < s+3 || rx[s+1] != 0x01) {
+    Serial.println("UNEXPECTED LOCAL ID");
+    return;
+  }
+  uint16_t dataStart = s+2;
+  uint16_t dataLen = rxLen - dataStart - 1;
+  Serial.print("LOCAL ID 01, DATA BYTES: "); Serial.println(dataLen);
+  // Index each byte to make comparison with tester temperatures easy.
+  for (uint16_t i = 0; i < dataLen; ++i) {
+    Serial.print("["); Serial.print(i); Serial.print("]=");
+    hexByte(rx[dataStart+i]); Serial.print(' ');
+    if ((i % 12) == 11) Serial.println();
+  }
+  Serial.println();
+  Serial.println("RAW ONLY: RPM/TEMP FORMULAS NOT YET VERIFIED");
+}
+
+void sampleBlocks() {
+  if (!connected) { Serial.println("CONNECT ECU FIRST (1)"); return; }
+  Serial.println("3 SAMPLES - READ ONLY");
+  for (uint8_t i = 0; i < 3; ++i) {
+    Serial.print("SAMPLE "); Serial.println(i+1);
+    readSiemensBlock();
+    if (i < 2) delay(350);
+  }
+}
+
+
+// V26: Foreign C# decoding for all identified fields; unverified fields labeled.
+// This function validates the long reply and copies exactly 93 data bytes.
+bool fetchBlock(uint8_t *out) {
+  if (!connected) { Serial.println("CONNECT ECU FIRST (1)"); return false; }
+  const uint8_t cmd[] = {0x82,0x11,0xF1,0x21,0x01,0xA6};
+  bool oldVerbose = verboseKline;
+  verboseKline = false;
+  bool ok = exchange(cmd, sizeof(cmd), 0x61, 1800);
+  verboseKline = oldVerbose;
+  if (!ok) return false;
+  uint8_t si = serviceOffset(rx);
+  if (rxLen != 100 || si != 4 || rx[si+1] != 0x01 ||
+      rx[0] != 0x80 || rx[3] != 0x5F) {
+    Serial.println("UNEXPECTED SIEMENS BLOCK FORMAT");
+    return false;
+  }
+  memcpy(out, rx + si + 2, 93);
+  return true;
+}
+
+void showDifferences(const uint8_t *a, const uint8_t *b, const char *title) {
+  Serial.println(title);
+  uint8_t changed = 0;
+  for (uint8_t i = 0; i < 93; i++) {
+    if (a[i] == b[i]) continue;
+    Serial.print("["); Serial.print(i); Serial.print("] ");
+    hexByte(a[i]); Serial.print(" -> "); hexByte(b[i]); Serial.println();
+    changed++;
+  }
+  if (!changed) Serial.println("NO CHANGES");
+  else { Serial.print("CHANGED BYTES: "); Serial.println(changed); }
+}
+
+// Source: SIM2K-34VR C# project: par[1] battery, par[3] coolant,
+// par[5] intake; par[20]/par[21] RPM. par[1] maps to d[0]
+// because the C# array includes the local identifier at par[0].
+// Foreign C# par[0] is local identifier 0x01; par[N] => d[N-1].
+// C# source: Form1.cs + dashboard.cs in the supplied SIM2K-34VR ZIP.
+// Unverified ECU-specific calculations are clearly labelled.
+uint16_t foreignWord(const uint8_t *d, uint8_t parLow) {
+  return (uint16_t)d[parLow-1] + 255U * (uint16_t)d[parLow];
+}
+float sparkAngle(uint8_t raw) {
+  return (255.0f - raw) * 0.42857f - 27.857f;
+}
+
+// Send compact, newline-delimited JSON to ESP-01 over USART2 (PA2/PA3).
+// Only values from a checksum-validated Siemens 21 01 block are sent.
+void sendWebTelemetry(const uint8_t *d) {
+  uint16_t rpm = foreignWord(d, 20);
+  float coolant = (255.0f - d[2]) * 0.5f - 12.0f;
+  float intake = (255.0f - d[4]) * 0.5f - 12.0f;
+  float battery = d[0] / 10.0f;
+  float mapCandidate = d[25] * 94.0f / 255.0f + 10.4f;
+  Serial2.print(F("{\"type\":\"telemetry\",\"connected\":true,\"rpm\":")); Serial2.print(rpm);
+  Serial2.print(F(",\"coolant\":")); Serial2.print(coolant, 1);
+  Serial2.print(F(",\"intake\":")); Serial2.print(intake, 1);
+  Serial2.print(F(",\"battery\":")); Serial2.print(battery, 1);
+  Serial2.print(F(",\"map\":")); Serial2.print(mapCandidate, 1);
+  Serial2.print(F(",\"mapRaw\":")); Serial2.print(d[25]);
+  Serial2.print(F(",\"injectors\":["));
+  for (uint8_t i=0; i<5; ++i) { if (i) Serial2.print(','); Serial2.print(foreignWord(d, 34+2*i)/250.0f, 3); }
+  Serial2.print(F("],\"spark\":["));
+  for (uint8_t i=0; i<4; ++i) { if (i) Serial2.print(','); Serial2.print(sparkAngle(d[29+i]), 2); }
+  Serial2.print(F("],\"tps\":null,\"tpsRaw\":null,\"raw\":["));
+  for (uint8_t i=0; i<93; ++i) { if (i) Serial2.print(','); Serial2.print(d[i]); }
+  Serial2.println(F("]}"));
+}
+
+void hexByteJson(uint8_t b) { if (b < 16) Serial2.print('0'); Serial2.print(b, HEX); }
+
+void sendWebDTC(uint8_t count) {
+  Serial2.print(F("{\"type\":\"dtc\",\"count\":")); Serial2.print(count); Serial2.print(F(",\"codes\":["));
+  for (uint8_t i=0; i<count; ++i) {
+    uint16_t j = 5 + i * 3; if (j+2 >= rxLen-1) break;
+    if (i) Serial2.print(',');
+    Serial2.print(F("{\"code\":\"")); hexByteJson(rx[j]); Serial2.print(' '); hexByteJson(rx[j+1]);
+    Serial2.print(F("\",\"status\":\"")); hexByteJson(rx[j+2]); Serial2.print(F("\"}"));
+  }
+  Serial2.println(F("]}"));
+}
+void showV26Values(const uint8_t *d) {
+  uint16_t rpmCSharp = foreignWord(d, 20);
+  float coolant = (255.0f - d[2]) * 0.5f - 12.0f;
+  float intake = (255.0f - d[4]) * 0.5f - 12.0f;
+  float battery = d[0] / 10.0f;
+  // Commented-out MAP formula in Form1.cs, par[26] => d[25].
+  float mapCandidate = d[25] * 94.0f / 255.0f + 10.4f;
+
+  Serial.println("\n========== YASIR ECU PANEL V27 ==========");
+  Serial.print("ENGINE RPM (C#):    "); Serial.println(rpmCSharp);
+  Serial.print("COOLANT (C):        "); Serial.println(coolant, 1);
+  Serial.print("INTAKE AIR (C):     "); Serial.println(intake, 1);
+  Serial.print("BATTERY (V):        "); Serial.println(battery, 1);
+  Serial.print("MAP candidate:      "); Serial.print(mapCandidate, 1);
+  Serial.print(" (raw par[26]=0x"); hexByte(d[25]); Serial.println(") UNVERIFIED");
+  Serial.println("INJECTOR TIMES (ms, C# formula x255 /250):");
+  for (uint8_t i=0; i<5; ++i) {
+    uint8_t parLow = 34 + 2*i;
+    uint16_t raw = foreignWord(d, parLow);
+    Serial.print(i == 4 ? "  AVG: " : "  INJ ");
+    if (i < 4) Serial.print(i+1);
+    Serial.print(" = "); Serial.print(raw / 250.0f, 3);
+    Serial.print("  (raw "); Serial.print(raw); Serial.println(")");
+  }
+  Serial.println("SPARK ANGLE (deg, C# candidate):");
+  for (uint8_t i=0; i<4; ++i) {
+    uint8_t raw = d[29+i]; // par[30..33]
+    Serial.print("  CYL "); Serial.print(i+1);
+    Serial.print(" = "); Serial.print(sparkAngle(raw), 2);
+    Serial.print("  (raw 0x"); hexByte(raw); Serial.println(")");
+  }
+  Serial.println("OTHER C# COMBINED RAW WORDS (x255, meaning unknown):");
+  const uint8_t extraParLow[] = {16,59,57,73,22,12};
+  for (uint8_t i=0; i<sizeof(extraParLow); ++i) {
+    uint8_t low = extraParLow[i];
+    Serial.print("  par["); Serial.print(low); Serial.print(":");
+    Serial.print(low+1); Serial.print("] = ");
+    Serial.println(foreignWord(d, low));
+  }
+  Serial.print("RAW coolant d[2]=0x"); hexByte(d[2]); Serial.println();
+  Serial.print("RAW intake  d[4]=0x"); hexByte(d[4]); Serial.println();
+  Serial.print("RAW battery d[0]=0x"); hexByte(d[0]); Serial.println();
+  Serial.println("TPS: NO FORMULA FOUND IN FOREIGN SOURCE");
+  Serial.println("C# DERIVED VALUES: CHECK AGAINST TESTER/TNM");
+  Serial.println("===========================================");
+}
+
+void panel() {
+  uint8_t d[93];
+  if (!fetchBlock(d)) { Serial.println("PANEL: BLOCK READ FAILED"); return; }
+  showV26Values(d);
+  // Live display stays compact. Use A to inspect changed bytes.
+  memcpy(previousBlock, d, 93);
+  previousReady = true;
+}
+
+void saveBaseline() {
+  if (!fetchBlock(baselineBlock)) {
+    Serial.println("BASELINE NOT SAVED"); return;
+  }
+  baselineReady = true;
+  Serial.println("BASELINE SAVED: 93 BYTES. CHANGE TESTER AND PRESS 'A'.");
+  Serial.print("BASELINE RAW [5] = 0x"); hexByte(baselineBlock[5]); Serial.println();
+}
+
+void compareBaseline() {
+  if (!baselineReady) { Serial.println("SAVE BASELINE FIRST (0)"); return; }
+  uint8_t current[93];
+  if (!fetchBlock(current)) { Serial.println("COMPARE FAILED"); return; }
+  uint16_t rpm = foreignWord(current, 20);
+  Serial.print("RPM C# x255: "); Serial.println(rpm);
+  showV26Values(current);
+  showDifferences(baselineBlock, current, "BASELINE -> CURRENT:");
+  Serial.println("BASELINE PRESERVED; PRESS '0' TO REPLACE IT.");
+}
+
+
+// Complete foreign C# par[] display. In the source par[0] is local ID 01;
+// par[1..93] map to the 93-byte Siemens data payload d[0..92].
+// Only documented sensor positions receive labels; other bytes stay RAW.
+void showAllForeignParameters() {
+  uint8_t d[93];
+  if (!fetchBlock(d)) { Serial.println("RAW PARAMETER READ FAILED"); return; }
+  Serial.println("\n=== V27: ALL 93 FOREIGN par[] BYTES ===");
+  Serial.println("par[0]=01 (LOCAL IDENTIFIER, NOT A SENSOR)");
+  for (uint8_t i=0; i<93; ++i) {
+    uint8_t parIndex = i + 1;
+    Serial.print("par["); Serial.print(parIndex); Serial.print("] / d[");
+    Serial.print(i); Serial.print("] = 0x"); hexByte(d[i]);
+    Serial.print(" ("); Serial.print(d[i]); Serial.print(")");
+    switch (parIndex) {
+      case 1: Serial.print("  BATTERY RAW"); break;
+      case 3: Serial.print("  COOLANT RAW"); break;
+      case 5: Serial.print("  INTAKE AIR RAW"); break;
+      case 20: case 21: Serial.print("  RPM WORD BYTE"); break;
+      case 26: Serial.print("  MAP CANDIDATE RAW (SOURCE COMMENTED)"); break;
+      case 30: case 31: case 32: case 33: Serial.print("  SPARK RAW"); break;
+      case 34: case 35: case 36: case 37: case 38:
+      case 39: case 40: case 41: case 42: case 43:
+        Serial.print("  INJECTOR WORD BYTE"); break;
+    }
+    Serial.println();
+  }
+  Serial.println("RAW BYTES ARE NOT VERIFIED SENSOR MEASUREMENTS");
+}
+
+
+// CSV output for saving real-time ECU measurements in Serial Monitor.
+// Every row comes from one checksum-validated 21 01 reply.
+bool csvMode = false;
+void csvHeader() {
+  Serial.println("millis,rpm,coolant_C,intake_C,battery_V,map_candidate_unverified,inj1_ms,inj2_ms,inj3_ms,inj4_ms,inj_avg_ms,spark1_deg,spark2_deg,spark3_deg,spark4_deg,raw_map,raw_tps_unknown");
+}
+void csvSample() {
+  uint8_t d[93];
+  if (!fetchBlock(d)) { Serial.println("# CSV READ FAILED"); return; }
+  Serial.print(millis()); Serial.print(',');
+  Serial.print(foreignWord(d,20)); Serial.print(',');
+  Serial.print((255.0f-d[2])*0.5f-12.0f,1); Serial.print(',');
+  Serial.print((255.0f-d[4])*0.5f-12.0f,1); Serial.print(',');
+  Serial.print(d[0]/10.0f,1); Serial.print(',');
+  Serial.print(d[25]*94.0f/255.0f+10.4f,2); Serial.print(',');
+  for(uint8_t i=0;i<5;i++) { Serial.print(foreignWord(d,34+2*i)/250.0f,3); Serial.print(','); }
+  for(uint8_t i=0;i<4;i++) { Serial.print(sparkAngle(d[29+i]),2); Serial.print(','); }
+  Serial.print(d[25]); Serial.println(",NA");
+}
+
+void menu() {
+  Serial.println("\n=== YASIR K-LINE V27 - SIEMENS ===");
+  Serial.println("1 = CONNECT ECU");
+  Serial.println("2 = READ DTC");
+  Serial.println("3 = CLEAR DTC AND RECHECK (ONLY IF INTENDED)");
+  Serial.println("4 = MENU");
+  Serial.println("5 = READ FULL SIEMENS 21 01 HEX BLOCK");
+  Serial.println("6 = READ 3 FULL BLOCKS");
+  Serial.println("7 = PANEL ONCE");
+  Serial.println("8 = LIVE PANEL ON (1 SECOND)");
+  Serial.println("9 = LIVE PANEL OFF");
+  Serial.println("0 = SAVE BASELINE (AT CURRENT TESTER SETTINGS)");
+  Serial.println("A = COMPARE CURRENT DATA TO SAVED BASELINE");
+  Serial.println("B = SHOW ALL 93 C# par[] BYTES WITH KNOWN LABELS");
+  Serial.println("C = START CSV LIVE OUTPUT (1 SECOND)");
+  Serial.println("9 = STOP LIVE PANEL OR CSV");
+  Serial.println("V27: C# formulas ONLY for RPM, temps, battery, injectors, sparks, candidate MAP.");
+  Serial.println("MAP formula was commented out in source; TPS is not identified.");
+  Serial.println("NOTE: 0/A ARE READ-ONLY; 3 CLEARS FAULT CODES.");
+}
+void handleCommand(char c) {
+  if (c == '\r' || c == '\n' || c == ' ' || c == '\t') return;
+  if (c == '8') { csvMode=false; livePanel=true; lastPanel=millis()-1000UL; Serial.println("LIVE PANEL STARTED"); }
+  else if (c == '9') { csvMode=false; livePanel=false; Serial.println("LIVE PANEL STOPPED"); }
+  else if (c == '1') { csvMode=false; connectECU(); }
+  else if (c == '2') { csvMode=false; livePanel=false; readDTC(); }
+  else if (c == '3') { csvMode=false; livePanel=false; clearDTC(); }
+  else if (c == '4') menu();
+  else if (c == '5') { csvMode=false; livePanel=false; readSiemensBlock(); }
+  else if (c == '6') { csvMode=false; livePanel=false; sampleBlocks(); }
+  else if (c == '7') { csvMode=false; livePanel=false; panel(); }
+  else if (c == '0') { csvMode=false; livePanel=false; saveBaseline(); }
+  else if (c == 'A' || c == 'a') { csvMode=false; livePanel=false; compareBaseline(); }
+  else if (c == 'B' || c == 'b') { csvMode=false; livePanel=false; showAllForeignParameters(); }
+  else if (c == 'C' || c == 'c') { livePanel=false; csvMode=true; lastPanel=millis()-1000UL; csvHeader(); }
+}
+
+void setup() {
+  Serial.begin(115200);       // USB-TTL diagnostic console on PA9/PA10
+  Serial2.begin(ESP_BAUD);    // ESP-01 UART on PA2/PA3
+  Serial3.begin(K_BAUD);      // K-Line on PB10/PB11
+  delay(1200);
+  menu();
+  Serial2.println(F("{\"type\":\"status\",\"message\":\"STM32_READY\"}"));
+}
+void loop() {
+  while (Serial.available()) handleCommand((char)Serial.read());
+  // ESP commands are framed as !<command>\n, so ESP boot chatter is ignored.
+  while (Serial2.available()) {
+    char c = (char)Serial2.read();
+    if (c == '!') { espCommandArmed = true; continue; }
+    if (espCommandArmed) {
+      if (c != '\r' && c != '\n') handleCommand(c);
+      espCommandArmed = false;
+    }
+  }
+
+  if (csvMode && (uint32_t)(millis() - lastPanel) >= 1000) { lastPanel=millis(); csvSample(); }
+  if (livePanel && (uint32_t)(millis() - lastPanel) >= 1000) { lastPanel = millis(); panel(); }
+
+  // Web dashboard telemetry: read the ECU block at a modest rate when connected.
+  if (connected && !livePanel && !csvMode && (uint32_t)(millis() - lastWebTelemetry) >= 1200UL) {
+    lastWebTelemetry = millis();
+    uint8_t d[93];
+    if (fetchBlock(d)) sendWebTelemetry(d);
+    else sendWebStatus("READ_FAILED");
+  }
+}
