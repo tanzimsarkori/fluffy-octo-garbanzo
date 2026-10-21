@@ -51,12 +51,12 @@ public class MainActivity extends Activity {
     map = field("فشار منیفولد (آزمایشی)");
     injectors = field("زمان پاشش انژکتورها");
     spark = field("اصلاح جرقه سیلندرها");
-    button("خواندن خطاها", () -> send("2"));
+    button("خواندن خطاها", () -> send("!2"));
     button("پاک کردن خطاها", () -> new AlertDialog.Builder(this)
       .setTitle("تأیید پاک کردن خطا")
       .setMessage("آیا از پاک کردن خطاهای ECU مطمئن هستید؟")
       .setNegativeButton("انصراف",null)
-      .setPositiveButton("پاک کن",(d,w) -> send("3")).show());
+      .setPositiveButton("پاک کن",(d,w) -> send("!3")).show());
     dtc = field("خطاهای ECU");
     content.addView(text("تست عملگرها و TPS تا تأیید فرمان ECU غیرفعال هستند.",14,false));
     button("قطع اتصال", () -> disconnect());
