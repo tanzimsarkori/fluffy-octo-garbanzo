@@ -353,8 +353,9 @@ void hexByteJson(uint8_t b) { if (b < 16) Serial2.print('0'); Serial2.print(b, H
 
 void sendWebDTC(uint8_t count) {
   Serial2.print(F("{\"type\":\"dtc\",\"count\":")); Serial2.print(count); Serial2.print(F(",\"codes\":["));
+  uint16_t dataStart = (uint16_t)serviceOffset(rx) + 1;
   for (uint8_t i=0; i<count; ++i) {
-    uint16_t j = 5 + i * 3; if (j+2 >= rxLen-1) break;
+    uint16_t j = dataStart + i * 3; if (j+2 >= rxLen-1) break;
     if (i) Serial2.print(',');
     Serial2.print(F("{\"code\":\"")); hexByteJson(rx[j]); Serial2.print(' '); hexByteJson(rx[j+1]);
     Serial2.print(F("\",\"status\":\"")); hexByteJson(rx[j+2]); Serial2.print(F("\"}"));
