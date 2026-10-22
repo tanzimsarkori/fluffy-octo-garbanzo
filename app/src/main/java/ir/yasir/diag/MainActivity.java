@@ -322,15 +322,28 @@ public class MainActivity extends Activity {
         intake.setText(j.optString("intake","—") + " °C");
         battery.setText(j.optString("battery","—") + " ولت");
         map.setText(j.optString("map","—") + " (تأییدنشده)");
-        injectors.setText(array(j.optJSONArray("injectors")));
-        spark.setText(array(j.optJSONArray("spark")));
+        JSONArray inj = j.optJSONArray("injectors");
+        JSONArray ign = j.optJSONArray("spark");
+        updateTable(inj,injectorValues,"ms");
+        updateTable(ign,sparkValues,"°");
+        if(inj != null && inj.length()>0) {
+          double sum=0; int count=0;
+          for(int i=0;i<inj.length();i++) if(!inj.isNull(i)) {
+            try {sum+=inj.getDouble(i);count++;}catch(Exception ignored){}
+          }
+          injectorAverage.setText(count>0 ? String.format(java.util.Locale.US,"%.3f ms",sum/count) : "—");
+        } else injectorAverage.setText("—");
         setStatus("داده زنده ECU دریافت می‌شود");
       } else if(type.equals("dtc")) {
         JSONArray codes = j.optJSONArray("codes");
         StringBuilder b = new StringBuilder("تعداد خطا: " + j.optInt("count") + "\n");
         if(codes != null)for(int i=0;i<codes.length();i++) {
           JSONObject c = codes.optJSONObject(i);
-          if(c!=null)b.append(c.optString("code")).append("   وضعیت: ").append(c.optString("status")).append("\n");
+          if(c!=null) {
+            String code = standardCode(c.optString("code"));
+            b.append(code).append("  |  وضعیت خام: ").append(c.optString("status")).append("\n");
+            b.append(DtcDescriptions.describe(code)).append("\n\n");
+          }
         }
         dtc.setText(b.toString());
       } else if(type.equals("ack")) {
