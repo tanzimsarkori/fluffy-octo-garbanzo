@@ -20,7 +20,8 @@ public class MainActivity extends Activity {
   Socket socket;
   OutputStream out;
   TextView status, rpm, coolant, intake, battery, map, injectors, spark, dtc;
-  LinearLayout content;
+  LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
+  LinearLayout currentScreen;
   final String host = "192.168.4.1";
   final int port = 3333;
   final int navy = Color.rgb(13,26,44), teal = Color.rgb(0,135,135);
@@ -29,37 +30,128 @@ public class MainActivity extends Activity {
     super.onCreate(b);
     getWindow().setStatusBarColor(navy);
     ScrollView scroll = new ScrollView(this);
-    content = new LinearLayout(this);
-    content.setPadding(22,20,22,26);
-    content.setOrientation(LinearLayout.VERTICAL);
-    content.setBackgroundColor(Color.rgb(241,246,250));
-    content.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-    scroll.addView(content);
+    root = new LinearLayout(this);
+    root.setPadding(22,20,22,26);
+    root.setOrientation(LinearLayout.VERTICAL);
+    root.setBackgroundColor(Color.rgb(241,246,250));
+    root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    scroll.addView(root);
     setContentView(scroll);
-    TextView heading = text("یاسر دیاگ",29,true);
-    content.addView(heading);
-    content.addView(text("عیب‌یاب فارسی خودرو • زیمنس SIM2K-34VR",15,false));
+    content = root;
+    root.addView(text("یاسر دیاگ",29,true));
+    root.addView(text("عیب‌یاب فارسی خودرو • زیمنس SIM2K-34VR",15,false));
     status = text("ابتدا به وای‌فای E-MAX وصل شوید",15,true);
     status.setTextColor(teal);
-    content.addView(status);
-    button("اتصال به دستگاه", () -> connect());
+    root.addView(status);
+
+    home = section("منوی اصلی");
+    parametersMenu = section("پارامترها");
+    speedSection = section("اطلاعات سیگنال کیلومترشمار");
+    emissionsSection = section("اطلاعات کنترل آلودگی");
+    ignitionSection = section("سیگنال جرقه");
+    airSection = section("اطلاعات مکش هوا");
+    fuelSection = section("اطلاعات تزریق سوخت");
+    dtcSection = section("خطاهای ECU");
+    ecuSection = section("شناسایی ECU");
+    actuatorSection = section("عملگرها");
+    resetSection = section("ریست مقادیر سازگار یافته");
+    chartSection = section("نمودارها");
+
+    content = home;
+    button("اتصال به دستگاه (Wi-Fi)", () -> connect());
     button("اتصال به ECU", () -> send("!1"));
+    button("شناسایی", () -> show(ecuSection));
+    button("خواندن عیب", () -> { show(dtcSection); send("!2"); });
+    button("پاک کردن عیب", () -> { show(dtcSection); confirmClear(); });
+    button("پارامترها", () -> show(parametersMenu));
+    button("عملگرها", () -> show(actuatorSection));
+    button("ریست کردن مقادیر سازگار یافته", () -> show(resetSection));
+    button("نمودار", () -> show(chartSection));
+    button("قطع اتصال", () -> disconnect());
+
+    content = parametersMenu;
+    button("اطلاعات سیگنال کیلومترشمار", () -> show(speedSection));
+    button("اطلاعات کنترل آلودگی", () -> show(emissionsSection));
+    button("سیگنال جرقه", () -> show(ignitionSection));
+    button("اطلاعات مکش هوا", () -> show(airSection));
+    button("اطلاعات تزریق سوخت", () -> show(fuelSection));
+    back(home);
+
+    content = speedSection;
     rpm = field("دور موتور");
+    back(parametersMenu);
+
+    content = emissionsSection;
     coolant = field("دمای آب");
-    intake = field("دمای هوای ورودی");
     battery = field("ولتاژ باتری");
-    map = field("فشار منیفولد (آزمایشی)");
-    injectors = field("زمان پاشش انژکتورها");
+    back(parametersMenu);
+
+    content = ignitionSection;
     spark = field("اصلاح جرقه سیلندرها");
+    back(parametersMenu);
+
+    content = airSection;
+    intake = field("دمای هوای ورودی");
+    map = field("فشار منیفولد (آزمایشی / تأییدنشده)");
+    back(parametersMenu);
+
+    content = fuelSection;
+    injectors = field("زمان پاشش انژکتورها");
+    back(parametersMenu);
+
+    content = dtcSection;
     button("خواندن خطاها", () -> send("!2"));
-    button("پاک کردن خطاها", () -> new AlertDialog.Builder(this)
+    button("پاک کردن خطاها", () -> confirmClear());
+    dtc = field("خطاهای ECU");
+    back(home);
+
+    content = ecuSection;
+    content.addView(text("ECU: Siemens SIM2K-34VR (پروفایل انتخاب‌شده)؛ شناسایی خودکار هنوز پیاده‌سازی نشده است.",16,false));
+    back(home);
+    content = actuatorSection;
+    content.addView(text("تست عملگرها تا تأیید فرمان‌های اختصاصی ECU غیرفعال است.",16,false));
+    back(home);
+    content = resetSection;
+    content.addView(text("ریست مقادیر سازگار یافته تا شناسایی و تأیید فرمان ECU غیرفعال است.",16,false));
+    back(home);
+    content = chartSection;
+    content.addView(text("نمودارهای زنده در نسخه بعدی اضافه می‌شوند؛ مقادیر عددی فعلاً در بخش پارامترها در دسترس‌اند.",16,false));
+    back(home);
+    content = root;
+    show(home);
+  }
+
+  LinearLayout section(String title) {
+    LinearLayout section = new LinearLayout(this);
+    section.setOrientation(LinearLayout.VERTICAL);
+    section.setVisibility(View.GONE);
+    root.addView(section);
+    section.addView(text(title,22,true));
+    return section;
+  }
+
+  void show(LinearLayout screen) {
+    if(currentScreen != null) currentScreen.setVisibility(View.GONE);
+    currentScreen = screen;
+    screen.setVisibility(View.VISIBLE);
+  }
+
+  void back(LinearLayout target) {
+    button("بازگشت", () -> show(target));
+  }
+
+  void confirmClear() {
+    new AlertDialog.Builder(this)
       .setTitle("تأیید پاک کردن خطا")
       .setMessage("آیا از پاک کردن خطاهای ECU مطمئن هستید؟")
       .setNegativeButton("انصراف",null)
-      .setPositiveButton("پاک کن",(d,w) -> send("!3")).show());
-    dtc = field("خطاهای ECU");
-    content.addView(text("تست عملگرها و TPS تا تأیید فرمان ECU غیرفعال هستند.",14,false));
-    button("قطع اتصال", () -> disconnect());
+      .setPositiveButton("پاک کن",(d,w) -> send("!3")).show();
+  }
+
+  @Override public void onBackPressed() {
+    if(currentScreen == home) super.onBackPressed();
+    else if(currentScreen == speedSection || currentScreen == emissionsSection || currentScreen == ignitionSection || currentScreen == airSection || currentScreen == fuelSection) show(parametersMenu);
+    else show(home);
   }
 
   TextView text(String value,int size,boolean bold) {
