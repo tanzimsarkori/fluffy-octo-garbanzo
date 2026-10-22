@@ -24,7 +24,8 @@ public class MainActivity extends Activity {
   LinearLayout currentScreen;
   TextView[] injectorValues = new TextView[5];
   TextView[] sparkValues = new TextView[4];
-  TextView injectorAverage;
+  TextView injectorAverage, dashRpm, dashCoolant, dashBattery, dashIntake, dashInjection, dashUpdated;
+  LinearLayout dashboardSection;
   final String host = "192.168.4.1";
   final int port = 3333;
   final int navy = Color.rgb(13,26,44), teal = Color.rgb(0,135,135);
@@ -49,6 +50,7 @@ public class MainActivity extends Activity {
 
     home = section("منوی اصلی");
     parametersMenu = section("پارامترها");
+    dashboardSection = section("داشبورد زنده موتور");
     speedSection = section("اطلاعات سیگنال کیلومترشمار");
     emissionsSection = section("اطلاعات کنترل آلودگی");
     ignitionSection = section("سیگنال جرقه");
@@ -66,11 +68,22 @@ public class MainActivity extends Activity {
     button("شناسایی", () -> show(ecuSection));
     button("خواندن عیب", () -> { show(dtcSection); send("!2"); });
     button("پاک کردن عیب", () -> { show(dtcSection); confirmClear(); });
+    button("داشبورد زنده موتور", () -> show(dashboardSection));
     button("پارامترها", () -> show(parametersMenu));
     button("عملگرها", () -> show(actuatorSection));
     button("ریست کردن مقادیر سازگار یافته", () -> show(resetSection));
     button("نمودار", () -> show(chartSection));
     button("قطع اتصال", () -> disconnect());
+
+    content = dashboardSection;
+    dashRpm = field("دور موتور");
+    dashCoolant = field("دمای آب");
+    dashIntake = field("دمای هوای ورودی");
+    dashBattery = field("ولتاژ باتری");
+    dashInjection = field("میانگین زمان پاشش");
+    dashUpdated = text("هنوز داده‌ای دریافت نشده است",13,false);
+    content.addView(dashUpdated);
+    back(home);
 
     content = parametersMenu;
     button("اطلاعات سیگنال کیلومترشمار", () -> show(speedSection));
@@ -322,6 +335,11 @@ public class MainActivity extends Activity {
         intake.setText(j.optString("intake","—") + " °C");
         battery.setText(j.optString("battery","—") + " ولت");
         map.setText(j.optString("map","—") + " (تأییدنشده)");
+        dashRpm.setText(j.optString("rpm","—") + " دور/دقیقه");
+        dashCoolant.setText(j.optString("coolant","—") + " °C");
+        dashIntake.setText(j.optString("intake","—") + " °C");
+        dashBattery.setText(j.optString("battery","—") + " ولت");
+        dashUpdated.setText("آخرین دریافت: " + new java.text.SimpleDateFormat("HH:mm:ss",java.util.Locale.US).format(new java.util.Date()));
         JSONArray inj = j.optJSONArray("injectors");
         JSONArray ign = j.optJSONArray("spark");
         updateTable(inj,injectorValues,"ms");
@@ -331,8 +349,10 @@ public class MainActivity extends Activity {
           for(int i=0;i<inj.length();i++) if(!inj.isNull(i)) {
             try {sum+=inj.getDouble(i);count++;}catch(Exception ignored){}
           }
-          injectorAverage.setText(count>0 ? String.format(java.util.Locale.US,"%.3f ms",sum/count) : "—");
-        } else injectorAverage.setText("—");
+          String average = count>0 ? String.format(java.util.Locale.US,"%.3f ms",sum/count) : "—";
+          injectorAverage.setText(average);
+          dashInjection.setText(average);
+        } else { injectorAverage.setText("—"); dashInjection.setText("—"); }
         setStatus("داده زنده ECU دریافت می‌شود");
       } else if(type.equals("dtc")) {
         JSONArray codes = j.optJSONArray("codes");
