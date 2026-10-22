@@ -546,13 +546,26 @@ void setup() {
 }
 void loop() {
   while (Serial.available()) handleCommand((char)Serial.read());
-  // ESP commands are framed as !<command>\n, so ESP boot chatter is ignored.
+  // ESP commands normally arrive as !<command>\\n.
+  // Print received bytes to USB Serial for diagnosis.
   while (Serial2.available()) {
     char c = (char)Serial2.read();
+    Serial.print("ESP RX BYTE: 0x");
+    if ((uint8_t)c < 0x10) Serial.print('0');
+    Serial.print((uint8_t)c, HEX);
+    Serial.print(" CHAR: ");
+    if (c >= 32 && c <= 126) Serial.println(c);
+    else Serial.println('.');
+
     if (c == '!') { espCommandArmed = true; continue; }
+    if (c == '\r' || c == '\n') continue;
+
     if (espCommandArmed) {
-      if (c != '\r' && c != '\n') handleCommand(c);
+      handleCommand(c);
       espCommandArmed = false;
+    } else if (c >= '1' && c <= '9') {
+      Serial.println("ESP COMMAND WITHOUT PREFIX");
+      handleCommand(c);
     }
   }
 
