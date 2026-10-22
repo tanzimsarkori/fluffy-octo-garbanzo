@@ -22,6 +22,9 @@ public class MainActivity extends Activity {
   TextView status, rpm, coolant, intake, battery, map, injectors, spark, dtc;
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
   LinearLayout currentScreen;
+  TextView[] injectorValues = new TextView[5];
+  TextView[] sparkValues = new TextView[4];
+  TextView injectorAverage;
   final String host = "192.168.4.1";
   final int port = 3333;
   final int navy = Color.rgb(13,26,44), teal = Color.rgb(0,135,135);
@@ -87,7 +90,8 @@ public class MainActivity extends Activity {
     back(parametersMenu);
 
     content = ignitionSection;
-    spark = field("اصلاح جرقه سیلندرها");
+    for(int i=0;i<4;i++) sparkValues[i] = tableRow("آوانس جرقه سیلندر " + (i+1));
+    spark = text("",12,false);
     back(parametersMenu);
 
     content = airSection;
@@ -96,13 +100,15 @@ public class MainActivity extends Activity {
     back(parametersMenu);
 
     content = fuelSection;
-    injectors = field("زمان پاشش انژکتورها");
+    for(int i=0;i<5;i++) injectorValues[i] = tableRow("زمان پاشش انژکتور سیلندر " + (i+1));
+    injectorAverage = tableRow("میانگین زمان پاشش");
+    injectors = text("",12,false);
     back(parametersMenu);
 
     content = dtcSection;
     button("خواندن خطاها", () -> send("!2"));
     button("پاک کردن خطاها", () -> confirmClear());
-    dtc = field("خطاهای ECU");
+    dtc = field("کد خطا و شرح فارسی");
     back(home);
 
     content = ecuSection;
@@ -178,6 +184,47 @@ public class MainActivity extends Activity {
     v.setTextColor(teal);
     card.addView(v);
     return v;
+  }
+
+  TextView tableRow(String label) {
+    LinearLayout line = new LinearLayout(this);
+    line.setOrientation(LinearLayout.HORIZONTAL);
+    line.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+    line.setGravity(Gravity.CENTER_VERTICAL);
+    line.setPadding(12,18,12,18);
+    line.setBackgroundColor((content.getChildCount()%2==0) ? Color.rgb(224,233,244) : Color.WHITE);
+    TextView value = text("—",17,true);
+    value.setGravity(Gravity.CENTER);
+    value.setTextColor(teal);
+    line.addView(value, new LinearLayout.LayoutParams(0,-2,1));
+    TextView name = text(label,15,false);
+    name.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+    line.addView(name, new LinearLayout.LayoutParams(0,-2,2));
+    content.addView(line,new LinearLayout.LayoutParams(-1,-2));
+    return value;
+  }
+
+  void updateTable(JSONArray data,TextView[] values,String unit) {
+    for(int i=0;i<values.length;i++) {
+      values[i].setText(data != null && i<data.length() && !data.isNull(i) ? data.optString(i) + " " + unit : "—");
+    }
+  }
+
+  String standardCode(String raw) {
+    if(raw == null) return "";
+    String s = raw.trim().toUpperCase(java.util.Locale.US);
+    if(s.matches("[PCBU][0-3][0-9A-F]{3}")) return s;
+    String[] parts = s.split("[^0-9A-F]+");
+    if(parts.length >= 2 && parts[0].length()==2 && parts[1].length()==2) {
+      try {
+        int a = Integer.parseInt(parts[0],16);
+        int b = Integer.parseInt(parts[1],16);
+        char type = "PCBU".charAt((a>>6)&3);
+        int second = (a>>4)&3;
+        return "" + type + second + Integer.toHexString(a&15).toUpperCase(java.util.Locale.US) + String.format(java.util.Locale.US,"%02X",b);
+      } catch(Exception ignored) {}
+    }
+    return s;
   }
 
   void button(String title,Runnable r) {
