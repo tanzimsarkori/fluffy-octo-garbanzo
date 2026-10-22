@@ -108,7 +108,7 @@ public class MainActivity extends Activity {
             return;
           }
           // STM32 V34 expects an exclamation-mark-prefixed ASCII command.
-          byte[] bytes = (command + "\\n").getBytes("US-ASCII");
+          byte[] bytes = (command + "\n").getBytes("US-ASCII");
           out.write(bytes);
           out.flush();
         }
