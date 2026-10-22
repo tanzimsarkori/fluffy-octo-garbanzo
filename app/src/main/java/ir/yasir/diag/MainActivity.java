@@ -18,7 +18,7 @@ public class MainActivity extends Activity {
   final Handler ui = new Handler(Looper.getMainLooper());
   volatile boolean running = false;
   Socket socket;
-  BufferedWriter out;
+  OutputStream out;
   TextView status, rpm, coolant, intake, battery, map, injectors, spark, dtc;
   LinearLayout content;
   final String host = "192.168.4.1";
@@ -98,17 +98,26 @@ public class MainActivity extends Activity {
 
   void setStatus(String s) { ui.post(() -> status.setText(s)); }
 
-  synchronized void send(String command) {
-    try {
-      if(out == null) {setStatus("ابتدا به ESP-01 متصل شوید");return;}
-      out.write(command + "\n");
-      out.flush();
-    } catch(Exception e) {
-      String detail = e.getMessage();
-      if(detail == null || detail.trim().isEmpty()) detail = "سوکت بسته شده یا ارتباط TCP قطع است";
-      setStatus("خطای ارسال (" + e.getClass().getSimpleName() + "): " + detail);
-      closeSocket();
-    }
+  void send(String command) {
+    // Never block the UI thread on a slow WiFi/TCP socket.
+    new Thread(() -> {
+      try {
+        synchronized (this) {
+          if (out == null || socket == null || socket.isClosed()) {
+            setStatus("اتصال TCP برقرار نیست؛ ابتدا اتصال به دستگاه را بزنید");
+            return;
+          }
+          // STM32 V34 expects an exclamation-mark-prefixed ASCII command.
+          byte[] bytes = (command + "\\n").getBytes("US-ASCII");
+          out.write(bytes);
+          out.flush();
+        }
+        setStatus("فرمان " + command + " ارسال شد؛ منتظر پاسخ ECU...");
+      } catch (Exception e) {
+        setStatus("خطای ارسال " + command + ": " + e.toString());
+        closeSocket();
+      }
+    }, "yasir-command").start();
   }
 
   void connect() {
@@ -127,7 +136,7 @@ public class MainActivity extends Activity {
 
           socket = s;
           synchronized (this) {
-            out = new BufferedWriter(new OutputStreamWriter(s.getOutputStream(), "UTF-8"));
+            out = s.getOutputStream();
           }
           setStatus("به ESP-01 متصل شد — اتصال به ECU را بزنید");
 
@@ -185,6 +194,8 @@ public class MainActivity extends Activity {
           if(c!=null)b.append(c.optString("code")).append("   وضعیت: ").append(c.optString("status")).append("\n");
         }
         dtc.setText(b.toString());
+      } else if(type.equals("ack")) {
+        setStatus("تأیید دریافت فرمان: " + j.optString("command"));
       } else if(type.equals("status")) {
         String message = j.optString("message", "نامشخص");
         if (message.equals("DTC_READ_OK")) {
