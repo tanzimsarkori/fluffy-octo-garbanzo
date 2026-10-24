@@ -128,23 +128,25 @@ public class MainActivity extends Activity {
     content.addView(text("ECU: Siemens SIM2K-34VR (پروفایل انتخاب‌شده)؛ شناسایی خودکار هنوز پیاده‌سازی نشده است.",16,false));
     back(home);
     content = actuatorSection;
-    content.addView(text("تست آزمایشی؛ فقط موتور خاموش، سوئیچ باز و خودرو ثابت. اجرای تست فقط با STM32 V37 سازگار است.",15,false));
-    button("توقف همه تست‌ها", () -> send("!S"));
-    button("تست استپر موتور", () -> new AlertDialog.Builder(this).setTitle("تأیید تست استپر موتور").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T24")).show());
-    button("تست پمپ بنزین", () -> new AlertDialog.Builder(this).setTitle("تأیید تست پمپ بنزین").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T12")).show());
-    button("تست فن دور کند", () -> new AlertDialog.Builder(this).setTitle("تأیید تست فن دور کند").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T1B")).show());
-    button("تست فن دور تند", () -> new AlertDialog.Builder(this).setTitle("تأیید تست فن دور تند").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T1A")).show());
-    button("تست رله اصلی ECU", () -> new AlertDialog.Builder(this).setTitle("تأیید تست رله اصلی ECU").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T1C")).show());
-    button("تست کولر", () -> new AlertDialog.Builder(this).setTitle("تأیید تست کولر").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T13")).show());
-    button("تست شیر کنیستر", () -> new AlertDialog.Builder(this).setTitle("تأیید تست شیر کنیستر").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T20")).show());
-    button("تست عملگر اگزوز", () -> new AlertDialog.Builder(this).setTitle("تأیید تست عملگر اگزوز").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T14")).show());
-    button("تست چراغ دیجیتال", () -> new AlertDialog.Builder(this).setTitle("تأیید تست چراغ دیجیتال").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T10")).show());
-    button("تست کوئل ۱", () -> new AlertDialog.Builder(this).setTitle("تأیید تست کوئل ۱").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T31")).show());
-    button("تست کوئل ۲", () -> new AlertDialog.Builder(this).setTitle("تأیید تست کوئل ۲").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T32")).show());
-    button("تست انژکتور ۱", () -> new AlertDialog.Builder(this).setTitle("تأیید تست انژکتور ۱").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T3A")).show());
-    button("تست انژکتور ۲", () -> new AlertDialog.Builder(this).setTitle("تأیید تست انژکتور ۲").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T3B")).show());
-    button("تست انژکتور ۳", () -> new AlertDialog.Builder(this).setTitle("تأیید تست انژکتور ۳").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T3C")).show());
-    button("تست انژکتور ۴", () -> new AlertDialog.Builder(this).setTitle("تأیید تست انژکتور ۴").setMessage("فقط با موتور خاموش و در محیط ایمن. این فرمان ممکن است عملگر را حرکت دهد. از نصب STM32 V37 مطمئن هستید؟").setNegativeButton("انصراف",null).setPositiveButton("اجرای کوتاه",(d,w)->send("!T3D")).show());
+    content.addView(text("تست عملگرهای ECU زیمنس SIM2K-34VR",18,true));
+    content.addView(text("شرط ایمنی: خودرو ثابت، موتور خاموش و سوئیچ باز باشد. هر تست یک‌بار فعال می‌شود و فریم‌ور V42 باید برای توقف خودکار ۲٫۵ ثانیه‌ای نصب باشد.",14,false));
+    content.addView(text("برای هر تست، برنامه ابتدا فرمان آماده‌سازی (!X) و سپس فرمان همان عملگر را می‌فرستد.",13,false));
+    button("توقف اضطراری همه تست‌ها", () -> send("!Z"));
+    button("تست استپر موتور", () -> confirmActuator("استپر موتور", 'S', false));
+    button("تست رله پمپ بنزین", () -> confirmActuator("رله پمپ بنزین", 'P', false));
+    button("تست فن دور کند", () -> confirmActuator("فن دور کند", 'L', false));
+    button("تست فن دور تند", () -> confirmActuator("فن دور تند", 'H', false));
+    button("تست رله اصلی ECU", () -> confirmActuator("رله اصلی ECU", 'M', false));
+    button("تست رله کولر", () -> confirmActuator("رله کولر", 'Q', false));
+    button("تست چراغ چک", () -> confirmActuator("چراغ چک موتور", 'G', false));
+    button("تست شیر برقی کنیستر", () -> confirmActuator("شیر برقی کنیستر", 'K', false));
+    button("تست خروجی با برچسب اگزوز", () -> confirmActuator("خروجی با برچسب اگزوز (شناسه نیازمند تأیید)", 'U', false));
+    button("تست کویل ۱", () -> confirmActuator("کویل ۱", 'J', true));
+    button("تست کویل ۲", () -> confirmActuator("کویل ۲", 'W', true));
+    button("تست انژکتور ۱", () -> confirmActuator("انژکتور ۱", 'N', true));
+    button("تست انژکتور ۲", () -> confirmActuator("انژکتور ۲", 'O', true));
+    button("تست انژکتور ۳", () -> confirmActuator("انژکتور ۳", 'R', true));
+    button("تست انژکتور ۴", () -> confirmActuator("انژکتور ۴", 'Y', true));
 
     back(home);
     content = resetSection;
@@ -174,6 +176,43 @@ public class MainActivity extends Activity {
 
   void back(LinearLayout target) {
     button("بازگشت", () -> show(target));
+  }
+
+  void confirmActuator(String name, char command, boolean highRisk) {
+    String warning = "فقط با موتور خاموش، خودرو ثابت و محیط ایمن اجرا کنید. فرمان به ECU ارسال می‌شود و فریم‌ور V42 باید توقف خودکار ۲٫۵ ثانیه‌ای داشته باشد.";
+    if (highRisk) {
+      warning += "\n\nهشدار جدی: تست کویل یا انژکتور می‌تواند خطر جرقه یا پاشش سوخت ایجاد کند. فقط با روش تعمیراتی و تجهیزات ایمن انجام دهید؛ نه با موتور روشن.";
+    }
+    new AlertDialog.Builder(this)
+      .setTitle("تأیید تست " + name)
+      .setMessage(warning)
+      .setNegativeButton("انصراف", null)
+      .setPositiveButton("آماده‌سازی و اجرای کوتاه", (d, w) -> sendActuatorTest(command))
+      .show();
+  }
+
+  // V42 firmware requires an explicit arm (!X) before a one-shot actuator ID.
+  // Send both lines from one worker in order; do not spawn competing send threads.
+  void sendActuatorTest(char command) {
+    new Thread(() -> {
+      try {
+        synchronized (this) {
+          if (out == null || socket == null || socket.isClosed()) {
+            setStatus("اتصال TCP برقرار نیست؛ ابتدا به E-MAX وصل شوید");
+            return;
+          }
+          out.write("!X\\n".getBytes("US-ASCII"));
+          out.flush();
+          Thread.sleep(250);
+          out.write(("!" + Character.toUpperCase(command) + "\\n").getBytes("US-ASCII"));
+          out.flush();
+        }
+        setStatus("فرمان آماده‌سازی و تست " + command + " ارسال شد؛ در انتظار پاسخ ECU");
+      } catch (Exception e) {
+        setStatus("خطای ارسال تست عملگر: " + e.toString());
+        closeSocket();
+      }
+    }, "yasir-actuator-test").start();
   }
 
   void confirmClear() {
@@ -384,7 +423,7 @@ public class MainActivity extends Activity {
         }
         dtc.setText(b.toString());
       } else if(type.equals("ack")) {
-        setStatus("تأیید دریافت فرمان: " + j.optString("command"));
+        setStatus("دریافت فرمان از اپلیکیشن: " + j.optString("command"));
       } else if(type.equals("status")) {
         String message = j.optString("message", "نامشخص");
         if (message.equals("DTC_READ_OK")) {
@@ -400,6 +439,20 @@ public class MainActivity extends Activity {
           setStatus("پاک‌کردن خطا تأیید نشد: " + message);
         } else if (message.equals("DTC_CLEARING")) {
           setStatus("در حال پاک‌کردن خطاها...");
+        } else if (message.equals("ACTUATOR_REQUEST_ACCEPTED")) {
+          setStatus("ECU فرمان تست را پذیرفت؛ حرکت فیزیکی عملگر باید جداگانه بررسی شود");
+        } else if (message.equals("ACTUATOR_REQUEST_NOT_CONFIRMED")) {
+          setStatus("تست عملگر تأیید نشد؛ پاسخ ECU را بررسی کنید");
+        } else if (message.equals("ACTUATOR_BLOCKED_NOT_ARMED")) {
+          setStatus("تست اجرا نشد: آماده‌سازی X انجام نشده یا منقضی شده است");
+        } else if (message.equals("ACTUATOR_FAILED_NOT_CONNECTED")) {
+          setStatus("تست عملگر انجام نشد: ابتدا ECU را وصل کنید");
+        } else if (message.equals("ACTUATOR_ALL_OFF_ACCEPTED")) {
+          setStatus("فرمان توقف همه تست‌ها توسط ECU پذیرفته شد");
+        } else if (message.equals("ACTUATOR_ALL_OFF_SENT")) {
+          setStatus("فرمان توقف همه تست‌ها ارسال شد؛ تأیید ECU در انتظار است");
+        } else if (message.equals("ACTUATOR_COMMAND_SENT_WAITING_ECU")) {
+          setStatus("فرمان عملگر ارسال شد؛ منتظر پاسخ ECU...");
         } else {
           setStatus("وضعیت: " + message);
         }
