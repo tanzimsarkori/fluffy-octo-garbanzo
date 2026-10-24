@@ -580,7 +580,7 @@ void printObdFormulaCandidates() {
     Serial.println("CMD8_READ_FAILED");
     return;
   }
-  Serial.println("\\n=== CMD8 CANDIDATE SCAN: NOT CONFIRMED PID MAPPING ===");
+  Serial.println("\n=== CMD8 CANDIDATE SCAN: NOT CONFIRMED PID MAPPING ===");
   Serial.println("Each row applies candidate formulas to one raw byte A=d[i] and adjacent pair A=d[i],B=d[i+1].");
   Serial.println("idx,raw,A-40,A_degC_ambient,MAP_kPa_candidate,percent_100A255,speed_A,timing_A2minus64,fuelpress_3A,trim_pct,fuelvolt_A200,pair_RPM_256AplusB_div4,pair_MAF_div100,pair_ECU_V_div1000,pair_runtime_raw");
   for (uint8_t i=0; i<93; ++i) {
