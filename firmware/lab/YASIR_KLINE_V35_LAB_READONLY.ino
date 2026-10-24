@@ -529,6 +529,47 @@ void labDiff(uint8_t a,uint8_t b) {
   }
   Serial.print("CHANGED_BYTES,");Serial.println(changed);
 }
+// Command 7: inspect six candidate 16-bit fields copied from the foreign SIM2K-34VR C# source.
+// Source uses par[] indexed from 1; our d[] is zero-based, so par[n] maps to d[n-1].
+// Preserve the source's multiplier 255 (not 256) for direct comparison with the reference app.
+uint16_t candidatePair(uint8_t highIndex, uint8_t lowIndex, const uint8_t *d) {
+  return (uint16_t)d[highIndex] * 255U + d[lowIndex];
+}
+void printCandidate(const char *name, uint8_t parHigh, uint8_t parLow, const uint8_t *d) {
+  uint8_t hiIndex = parHigh - 1;
+  uint8_t loIndex = parLow - 1;
+  uint16_t value = candidatePair(hiIndex, loIndex, d);
+  Serial.print(name); Serial.print(",par["); Serial.print(parHigh);
+  Serial.print("],par["); Serial.print(parLow);
+  Serial.print("],d["); Serial.print(hiIndex);
+  Serial.print("],d["); Serial.print(loIndex);
+  Serial.print("],raw_hi="); Serial.print(d[hiIndex]);
+  Serial.print(",raw_lo="); Serial.print(d[loIndex]);
+  Serial.print(",candidate="); Serial.println(value);
+}
+void printCandidateParameters() {
+  uint8_t d[93];
+  if (!fetchBlock(d)) {
+    Serial.println("CANDIDATE_READ_FAILED");
+    return;
+  }
+  Serial.println("CANDIDATE_PARAMETERS_BEGIN");
+  Serial.println("name,source_par_high,source_par_low,d_high,d_low,raw_hi,raw_lo,candidate_value");
+  printCandidate("P7", 17, 16, d);
+  printCandidate("P8", 60, 59, d);
+  printCandidate("P9", 58, 57, d);
+  printCandidate("P10", 74, 73, d);
+  printCandidate("P11", 23, 22, d);
+  printCandidate("P12", 13, 12, d);
+  Serial.println("NOTE=Candidate values are raw combinations only; names/units are not confirmed.");
+  Serial.println("RAW_BYTES,index,decimal,hex");
+  for (uint8_t i=0; i<93; i++) {
+    Serial.print("RAW,"); Serial.print(i); Serial.print(",");
+    Serial.print(d[i]); Serial.print(","); hexByte(d[i]); Serial.println();
+  }
+  Serial.println("CANDIDATE_PARAMETERS_END");
+}
+
 void labCsv() {
   Serial.print("state");
   for(int i=0;i<93;i++){Serial.print(",d");Serial.print(i);}
