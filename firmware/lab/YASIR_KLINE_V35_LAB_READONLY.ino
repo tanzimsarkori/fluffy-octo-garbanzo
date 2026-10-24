@@ -403,14 +403,15 @@ void showV26Values(const uint8_t *d) {
     Serial.print(" = "); Serial.print(sparkAngle(raw), 2);
     Serial.print("  (raw 0x"); hexByte(raw); Serial.println(")");
   }
-  Serial.println("OTHER C# COMBINED RAW WORDS (x255, meaning unknown):");
+  // Live candidate values: deliberately unlabeled so they can be compared
+  // against the external tester while changing one parameter at a time.
   const uint8_t extraParLow[] = {16,59,57,73,22,12};
+  Serial.print("EXTRA RAW: ");
   for (uint8_t i=0; i<sizeof(extraParLow); ++i) {
-    uint8_t low = extraParLow[i];
-    Serial.print("  par["); Serial.print(low); Serial.print(":");
-    Serial.print(low+1); Serial.print("] = ");
-    Serial.println(foreignWord(d, low));
+    if (i) Serial.print(", ");
+    Serial.print(foreignWord(d, extraParLow[i]));
   }
+  Serial.println();
   Serial.print("RAW coolant d[2]=0x"); hexByte(d[2]); Serial.println();
   Serial.print("RAW intake  d[4]=0x"); hexByte(d[4]); Serial.println();
   Serial.print("RAW battery d[0]=0x"); hexByte(d[0]); Serial.println();
