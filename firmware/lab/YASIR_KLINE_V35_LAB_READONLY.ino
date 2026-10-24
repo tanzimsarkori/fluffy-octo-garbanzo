@@ -571,6 +571,50 @@ void printCandidateParameters() {
   Serial.println("CANDIDATE_PARAMETERS_END");
 }
 
+// Command 8: scan every payload byte as an unlabeled candidate for the OBD formulas
+// shown by the user. This is a discovery aid only: OBD PIDs are not proven to map
+// directly onto this KWP2000 93-byte local-ID payload.
+void printObdFormulaCandidates() {
+  uint8_t d[93];
+  if (!fetchBlock(d)) {
+    Serial.println("CMD8_READ_FAILED");
+    return;
+  }
+  Serial.println("\\n=== CMD8 CANDIDATE SCAN: NOT CONFIRMED PID MAPPING ===");
+  Serial.println("Each row applies candidate formulas to one raw byte A=d[i] and adjacent pair A=d[i],B=d[i+1].");
+  Serial.println("idx,raw,A-40,A_degC_ambient,MAP_kPa_candidate,percent_100A255,speed_A,timing_A2minus64,fuelpress_3A,trim_pct,fuelvolt_A200,pair_RPM_256AplusB_div4,pair_MAF_div100,pair_ECU_V_div1000,pair_runtime_raw");
+  for (uint8_t i=0; i<93; ++i) {
+    float a = (float)d[i];
+    Serial.print(i); Serial.print(",");
+    Serial.print(d[i]); Serial.print(",");
+    Serial.print(a - 40.0f, 1); Serial.print(",");
+    Serial.print(a - 40.0f, 1); Serial.print(",");
+    Serial.print(a, 1); Serial.print(",");
+    Serial.print(100.0f * a / 255.0f, 1); Serial.print(",");
+    Serial.print(a, 1); Serial.print(",");
+    Serial.print(a / 2.0f - 64.0f, 1); Serial.print(",");
+    Serial.print(3.0f * a, 1); Serial.print(",");
+    Serial.print(100.0f * (a - 128.0f) / 128.0f, 1); Serial.print(",");
+    Serial.print(a / 200.0f, 3); Serial.print(",");
+    if (i < 92) {
+      uint16_t word255 = (uint16_t)d[i] * 255U + d[i+1];
+      uint16_t word256 = (uint16_t)d[i] * 256U + d[i+1];
+      Serial.print(word256 / 4.0f, 1); Serial.print(",");
+      Serial.print(word256 / 100.0f, 2); Serial.print(",");
+      Serial.print(word256 / 1000.0f, 3); Serial.print(",");
+      Serial.print(word256);
+      // Keep the foreign project's x255 candidate visible as a separate diagnostic.
+      Serial.print(",word255="); Serial.print(word255);
+    } else {
+      Serial.print(",,,,");
+    }
+    Serial.println();
+  }
+  Serial.println("NOTE: These are formula candidates applied to every byte position, NOT identified sensors.");
+  Serial.println("Change one tester value at a time, press 8 again, and compare which raw index/candidate changes.");
+  Serial.println("=== CMD8 END ===");
+}
+
 void labCsv() {
   Serial.print("state");
   for(int i=0;i<93;i++){Serial.print(",d");Serial.print(i);}
@@ -594,6 +638,7 @@ void menu() {
  Serial.println("X = EXPORT ALL 93 BYTES CSV");
  Serial.println("5 = READ RAW BLOCK");
  Serial.println("7 = PRINT SIX CANDIDATE PARAMETERS + ALL RAW BYTES");
+ Serial.println("8 = SCAN ALL 93 BYTES WITH OBD FORMULA CANDIDATES");
  Serial.println("H = HELP");
  Serial.println("NO CLEAR/RESET/ACTUATOR COMMANDS");
 }
@@ -608,6 +653,7 @@ void handleCommand(char c) {
  else if(c=='X'||c=='x') labCsv();
  else if(c=='5') readSiemensBlock();
  else if(c=='7') printCandidateParameters();
+ else if(c=='8') printObdFormulaCandidates();
  else if(c=='H'||c=='h'||c=='4') menu();
 }
 
