@@ -620,35 +620,51 @@ void printObdFormulaCandidates() {
 // directly to standard OBD PIDs; these are candidate conversions for comparison.
 void liveObdParameterCandidates() {
   uint8_t d[93];
-  if (!fetchBlock(d)) { Serial.println("LIVE PARAMETER READ FAILED"); return; }
+  if (!fetchBlock(d)) {
+    Serial.println("LIVE PARAMETER READ FAILED");
+    return;
+  }
 
-  Serial.println("\n========== YASIR ECU LIVE PARAMETER PANEL ==========");
-  Serial.println("OBD-II FORMULA CANDIDATES - RAW BYTE MAPPING NOT CONFIRMED");
-  Serial.println("Each row is one raw byte; values are candidates only, not identified sensors.");
-  Serial.println("----------------------------------------------------");
+  Serial.println("\n========== YASIR ECU PARAMETER SCAN ==========");
+  Serial.println("RAW BYTE CANDIDATES - NOT CONFIRMED SENSOR VALUES");
+  Serial.println("--- SINGLE BYTE FORMULAS ---");
   for (uint8_t i=0; i<93; ++i) {
     float a=(float)d[i];
-    Serial.print("d["); if(i<10) Serial.print("0"); Serial.print(i); Serial.print("] RAW=");
-    Serial.print(d[i]); Serial.print(" | TEMP(A-40)="); Serial.print(a-40.0f,1);
-    Serial.print(" | PCT(100A/255)="); Serial.print(100.0f*a/255.0f,1); Serial.print("%");
-    Serial.print(" | MAP(A candidate)="); Serial.print(a,1); Serial.print(" kPa");
-    Serial.print(" | SPEED(A candidate)="); Serial.print(a,1); Serial.print(" km/h");
-    Serial.print(" | TIMING(A/2-64)="); Serial.print(a/2.0f-64.0f,1); Serial.print(" deg");
-    Serial.print(" | FUEL PRESS(3A)="); Serial.print(3.0f*a,1); Serial.print(" kPa");
-    Serial.print(" | TRIM="); Serial.print(100.0f*(a-128.0f)/128.0f,1); Serial.print("%");
-    Serial.print(" | O2(A/200)="); Serial.print(a/200.0f,3); Serial.println(" V");
-    if (i<92) {
-      uint16_t word=(uint16_t)d[i]*256U+d[i+1];
-      Serial.print("   PAIR d["); if(i<10) Serial.print("0"); Serial.print(i);
-      Serial.print(":"); if(i+1<10) Serial.print("0"); Serial.print(i+1);
-      Serial.print("] = "); Serial.print(word);
-      Serial.print(" | RPM/4="); Serial.print(word/4.0f,1);
-      Serial.print(" | MAF/100="); Serial.print(word/100.0f,2);
-      Serial.print(" | ECU_V/1000="); Serial.println(word/1000.0f,3);
-    }
+    Serial.print("d[");
+    if (i<10) Serial.print("0");
+    Serial.print(i);
+    Serial.print("] RAW=");
+    if (d[i]<100) Serial.print(" ");
+    if (d[i]<10) Serial.print(" ");
+    Serial.print(d[i]);
+    Serial.print(" | A-40=");
+    Serial.print(a-40.0f,1);
+    Serial.print(" | 100A/255=");
+    Serial.print(100.0f*a/255.0f,1);
+    Serial.println("%");
   }
-  Serial.println("Change one tester parameter at a time, then send 2 again.");
-  Serial.println("====================================================");
+
+  Serial.println("--- TWO BYTE FORMULAS (HIGH BYTE FIRST) ---");
+  for (uint8_t i=0; i<92; ++i) {
+    uint16_t word=(uint16_t)d[i]*256U+(uint16_t)d[i+1];
+    Serial.print("d[");
+    if (i<10) Serial.print("0");
+    Serial.print(i);
+    Serial.print(":");
+    if (i+1<10) Serial.print("0");
+    Serial.print(i+1);
+    Serial.print("] WORD=");
+    Serial.print(word);
+    Serial.print(" | /4=");
+    Serial.print(word/4.0f,1);
+    Serial.print(" | /100=");
+    Serial.print(word/100.0f,2);
+    Serial.print(" | /1000=");
+    Serial.println(word/1000.0f,3);
+  }
+  Serial.println("These are mathematical candidates, not identified ECU parameters.");
+  Serial.println("Change one tester value and send 2 again to compare.");
+  Serial.println("==============================================");
 }
 
 void labCsv() {
