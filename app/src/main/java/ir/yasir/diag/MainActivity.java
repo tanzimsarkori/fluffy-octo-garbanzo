@@ -201,10 +201,10 @@ public class MainActivity extends Activity {
             setStatus("اتصال TCP برقرار نیست؛ ابتدا به E-MAX وصل شوید");
             return;
           }
-          out.write("!X\\n".getBytes("US-ASCII"));
+          out.write("!X\n".getBytes("US-ASCII"));
           out.flush();
           Thread.sleep(250);
-          out.write(("!" + Character.toUpperCase(command) + "\\n").getBytes("US-ASCII"));
+          out.write(("!" + Character.toUpperCase(command) + "\n").getBytes("US-ASCII"));
           out.flush();
         }
         setStatus("فرمان آماده‌سازی و تست " + command + " ارسال شد؛ در انتظار پاسخ ECU");
