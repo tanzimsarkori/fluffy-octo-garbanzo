@@ -592,6 +592,7 @@ void menu() {
  Serial.println("F = DIFF HALF vs FULL");
  Serial.println("X = EXPORT ALL 93 BYTES CSV");
  Serial.println("5 = READ RAW BLOCK");
+ Serial.println("7 = PRINT SIX CANDIDATE PARAMETERS + ALL RAW BYTES");
  Serial.println("H = HELP");
  Serial.println("NO CLEAR/RESET/ACTUATOR COMMANDS");
 }
@@ -605,6 +606,7 @@ void handleCommand(char c) {
  else if(c=='F'||c=='f') labDiff(1,2);
  else if(c=='X'||c=='x') labCsv();
  else if(c=='5') readSiemensBlock();
+ else if(c=='7') printCandidateParameters();
  else if(c=='H'||c=='h'||c=='4') menu();
 }
 
