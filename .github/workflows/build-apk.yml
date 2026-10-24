@@ -28,20 +28,20 @@ jobs:
       - name: Package V35 lab firmware ZIP
         run: |
           mkdir -p dist
-          cp firmware/lab/YASIR_KLINE_V35_LAB_READONLY.ino dist/YASIR_KLINE_V35_LAB_READONLY_CMD7.ino
+          cp firmware/lab/YASIR_KLINE_V35_LAB_READONLY.ino dist/YASIR_KLINE_V35_LIVE_PARAMS_CMD2.ino
           printf '%s\n' \
-            'YASIR K-LINE V35 LAB - command 7' \
+            'YASIR K-LINE V35 LAB - command 2' \
             '1. Open the .ino in Arduino IDE.' \
             '2. Select the STM32F103C8T6 board settings used by your working firmware.' \
             '3. Set Serial Monitor to 115200 baud.' \
-            '4. Send 1 to connect, then 7 to print the six candidate fields and all 93 raw bytes.' \
+            '4. Send 1 to connect, then 2 to show compact single-byte and two-byte formula candidate rows.' \
             'This is read-only lab firmware; keep the proven V42 production firmware as a backup.' \
             > dist/README.txt
-          cd dist && zip -j ../YASIR_KLINE_V35_LAB_CMD7.zip YASIR_KLINE_V35_LAB_READONLY_CMD7.ino README.txt
+          cd dist && zip -j ../YASIR_KLINE_V35_LIVE_PARAMS_CMD2.zip YASIR_KLINE_V35_LIVE_PARAMS_CMD2.ino README.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: YASIR-KLINE-V35-LAB-CMD7-ZIP
-          path: YASIR_KLINE_V35_LAB_CMD7.zip
+          name: YASIR-KLINE-V35-LIVE-PARAMS-CMD2-ZIP
+          path: YASIR_KLINE_V35_LIVE_PARAMS_CMD2.zip
       - name: Build APK
         run: gradle --no-daemon assembleDebug
       - uses: actions/upload-artifact@v4
