@@ -615,6 +615,40 @@ void printObdFormulaCandidates() {
   Serial.println("=== CMD8 END ===");
 }
 
+// Live menu view of OBD-II formulas supplied by the user.
+// d[] positions in this proprietary Siemens 21 01 block are not proven to map
+// directly to standard OBD PIDs; these are candidate conversions for comparison.
+void liveObdParameterCandidates() {
+  uint8_t d[93];
+  if (!fetchBlock(d)) { Serial.println("LIVE PARAMETER READ FAILED"); return; }
+  Serial.println("\n========== LIVE OBD PARAMETER CANDIDATES ==========");
+  Serial.println("UNMAPPED: idx is raw d[] position, not a confirmed OBD PID.");
+  Serial.println("idx,raw,temp_Aminus40,percent_100A255,MAP_A_kPa,speed_A_kmh,timing_Aover2minus64,fuel_pressure_3A,trim_pct,fuel_level_pct,O2_V_Aover200,word_RPM_div4,word_MAF_div100,word_ECU_V_div1000,word_runtime");
+  for (uint8_t i=0; i<93; ++i) {
+    float a=(float)d[i];
+    Serial.print(i); Serial.print(","); Serial.print(d[i]); Serial.print(",");
+    Serial.print(a-40.0f,1); Serial.print(",");
+    Serial.print(100.0f*a/255.0f,1); Serial.print(",");
+    Serial.print(a,1); Serial.print(",");
+    Serial.print(a,1); Serial.print(",");
+    Serial.print(a/2.0f-64.0f,1); Serial.print(",");
+    Serial.print(3.0f*a,1); Serial.print(",");
+    Serial.print(100.0f*(a-128.0f)/128.0f,1); Serial.print(",");
+    Serial.print(100.0f*a/255.0f,1); Serial.print(",");
+    Serial.print(a/200.0f,3);
+    if (i<92) {
+      uint16_t word=(uint16_t)d[i]*256U+d[i+1];
+      Serial.print(","); Serial.print(word/4.0f,1);
+      Serial.print(","); Serial.print(word/100.0f,2);
+      Serial.print(","); Serial.print(word/1000.0f,3);
+      Serial.print(","); Serial.print(word);
+    } else Serial.print(",,,,");
+    Serial.println();
+  }
+  Serial.println("Change one value on the tester, then choose 2 again and compare.");
+  Serial.println("===================================================");
+}
+
 void labCsv() {
   Serial.print("state");
   for(int i=0;i<93;i++){Serial.print(",d");Serial.print(i);}
@@ -629,6 +663,7 @@ void labCsv() {
 void menu() {
  Serial.println("\\n=== YASIR V35 LAB - READ ONLY ===");
  Serial.println("1 = CONNECT ECU");
+  Serial.println("2 = LIVE PARAMETER MENU (OBD formula candidates)");
  Serial.println("S = SNAPSHOT CLOSED THROTTLE");
  Serial.println("T = SNAPSHOT HALF THROTTLE");
  Serial.println("U = SNAPSHOT FULL THROTTLE");
@@ -644,6 +679,7 @@ void menu() {
 }
 void handleCommand(char c) {
  if(c=='1') connectECU();
+  else if(c=='2') liveObdParameterCandidates();
  else if(c=='S'||c=='s') labCapture(0);
  else if(c=='T'||c=='t') labCapture(1);
  else if(c=='U'||c=='u') labCapture(2);
