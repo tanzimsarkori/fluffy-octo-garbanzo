@@ -546,10 +546,10 @@ public class MainActivity extends Activity {
   void applyFontScale(View view) {
     if (view instanceof TextView) {
       TextView tv = (TextView)view;
-      Object saved = tv.getTag(R.id.font_size_original);
+      Object saved = tv.getTag();
       if (!(saved instanceof Float)) {
         float original = tv.getTextSize() / getResources().getDisplayMetrics().scaledDensity;
-        tv.setTag(R.id.font_size_original, Float.valueOf(original));
+        tv.setTag(Float.valueOf(original));
         saved = Float.valueOf(original);
       }
       tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, ((Float)saved).floatValue() * uiScale);
