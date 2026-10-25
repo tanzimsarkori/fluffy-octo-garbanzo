@@ -62,8 +62,9 @@ public class MainActivity extends Activity {
     appShell.setBackgroundColor(Color.rgb(3, 13, 15));
     ScrollView scroll = new ScrollView(this);
     scroll.setFillViewport(true);
+    scroll.setClipToPadding(false);
     root = new LinearLayout(this);
-    root.setPadding(22,20,22,26);
+    root.setPadding(dp(16),dp(12),dp(16),dp(36));
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.rgb(241,246,250));
     root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -112,7 +113,7 @@ public class MainActivity extends Activity {
     connectionPanel.addView(endpoint);
     root.addView(connectionPanel);
 
-    home = section("انتخاب سازنده خودرو");
+    home = section("");
     parametersMenu = section("پارامترها");
     dashboardSection = section("داشبورد زنده موتور");
     speedSection = section("اطلاعات سیگنال کیلومترشمار");
@@ -332,6 +333,8 @@ public class MainActivity extends Activity {
     show(home);
   }
 
+  int dp(float value) { return (int)(value * getResources().getDisplayMetrics().density + 0.5f); }
+
   GradientDrawable panelDrawable(int fill, int stroke, int radiusDp) {
     GradientDrawable d = new GradientDrawable();
     d.setColor(fill);
@@ -355,41 +358,49 @@ public class MainActivity extends Activity {
 
   void addIndustrialCompanyCard(android.widget.GridLayout grid, String name, int imageIndex, String code) {
     LinearLayout card = new LinearLayout(this);
-    card.setOrientation(LinearLayout.VERTICAL);
-    card.setGravity(Gravity.CENTER);
-    card.setPadding(7, 9, 7, 8);
+    card.setOrientation(LinearLayout.HORIZONTAL);
+    card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    card.setGravity(Gravity.CENTER_VERTICAL);
+    card.setPadding(dp(8), dp(7), dp(8), dp(7));
     card.setTag("industrial-company");
     int[] accents = new int[]{Color.rgb(0, 167, 235), Color.rgb(255, 125, 25), Color.rgb(235, 39, 55), Color.rgb(0, 194, 210), Color.rgb(170, 90, 240), Color.rgb(0, 188, 140), Color.rgb(255, 183, 0), Color.rgb(100, 130, 145)};
     int accent = accents[imageIndex % accents.length];
-    card.setBackground(panelDrawable(Color.rgb(8, 22, 25), accent, 16));
-    TextView badge = text(code, 13, true);
-    badge.setGravity(Gravity.CENTER);
-    badge.setTextColor(accent);
-    badge.setPadding(4, 0, 4, 3);
-    card.addView(badge);
-    TextView label = text(name, 15, true);
-    label.setGravity(Gravity.CENTER);
-    label.setTextColor(Color.rgb(239, 248, 243));
-    label.setMinHeight(36);
-    card.addView(label, new LinearLayout.LayoutParams(-1, -2));
+    card.setBackground(panelDrawable(Color.rgb(8, 22, 25), accent, 14));
+
     ImageView car = new ImageView(this);
     Bitmap bitmap = vehicleBitmap(imageIndex);
     if (bitmap != null) car.setImageBitmap(bitmap);
     car.setScaleType(ImageView.ScaleType.CENTER_CROP);
     car.setBackground(panelDrawable(Color.rgb(4, 12, 15), accent, 10));
-    LinearLayout.LayoutParams carParams = new LinearLayout.LayoutParams(-1, 90);
-    carParams.setMargins(0, 5, 0, 5);
-    card.addView(car, carParams);
-    TextView enter = text("انتخاب  ›", 12, true);
+    car.setClipToOutline(true);
+    card.addView(car, new LinearLayout.LayoutParams(dp(76), dp(70)));
+
+    LinearLayout labels = new LinearLayout(this);
+    labels.setOrientation(LinearLayout.VERTICAL);
+    labels.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+    labels.setPadding(dp(8), 0, dp(5), 0);
+    TextView label = text(name, 14, true);
+    label.setTextColor(Color.rgb(239, 248, 243));
+    label.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+    labels.addView(label, new LinearLayout.LayoutParams(-1, -2));
+    TextView badge = text(code, 10, true);
+    badge.setTextColor(accent);
+    badge.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+    badge.setPadding(0, dp(2), 0, dp(2));
+    labels.addView(badge);
+    TextView enter = text("انتخاب  ›", 11, true);
     enter.setTextColor(accent);
-    enter.setGravity(Gravity.CENTER);
-    card.addView(enter);
+    enter.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+    enter.setPadding(0, dp(2), 0, 0);
+    labels.addView(enter);
+    card.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+
     card.setOnClickListener(v -> openEcuMenu(name));
     android.widget.GridLayout.LayoutParams p = new android.widget.GridLayout.LayoutParams();
     p.width = 0;
-    p.height = -2;
+    p.height = dp(94);
     p.columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f);
-    p.setMargins(4, 4, 4, 4);
+    p.setMargins(dp(3), dp(3), dp(3), dp(3));
     grid.addView(card, p);
   }
 
@@ -563,7 +574,7 @@ public class MainActivity extends Activity {
     section.setOrientation(LinearLayout.VERTICAL);
     section.setVisibility(View.GONE);
     root.addView(section);
-    section.addView(text(title,22,true));
+    if (title != null && !title.trim().isEmpty()) section.addView(text(title,22,true));
     return section;
   }
 
