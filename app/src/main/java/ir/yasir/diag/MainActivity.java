@@ -66,7 +66,7 @@ public class MainActivity extends Activity {
     root = new LinearLayout(this);
     root.setPadding(dp(16),dp(12),dp(16),dp(36));
     root.setOrientation(LinearLayout.VERTICAL);
-    root.setBackgroundColor(Color.rgb(241,246,250));
+    root.setBackgroundColor(Color.rgb(3, 13, 15));
     root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
     scroll.addView(root);
     appShell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -76,41 +76,67 @@ public class MainActivity extends Activity {
     header.setOrientation(LinearLayout.HORIZONTAL);
     header.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
     header.setGravity(Gravity.CENTER_VERTICAL);
-    header.setPadding(12, 10, 12, 10);
+    header.setPadding(dp(8), dp(7), dp(8), dp(7));
     header.setTag("hero-header");
-    header.setBackground(panelDrawable(Color.rgb(7, 20, 19), Color.rgb(45, 126, 74), 18));
+    header.setBackground(panelDrawable(Color.rgb(3, 17, 15), Color.rgb(20, 72, 48), 18));
     LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(-1, -2);
-    headerParams.setMargins(0, 0, 0, 10);
+    headerParams.setMargins(0, 0, 0, dp(10));
     ImageView brandLogo = new ImageView(this);
     brandLogo.setImageResource(R.drawable.yasir_diag_logo);
     brandLogo.setScaleType(ImageView.ScaleType.CENTER_CROP);
     brandLogo.setBackground(panelDrawable(Color.rgb(0, 0, 0), Color.rgb(42, 112, 65), 14));
     brandLogo.setClipToOutline(true);
-    header.addView(brandLogo, new LinearLayout.LayoutParams(88, 88));
+    header.addView(brandLogo, new LinearLayout.LayoutParams(dp(112), dp(112)));
     LinearLayout brandText = new LinearLayout(this);
     brandText.setOrientation(LinearLayout.VERTICAL);
     brandText.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
-    brandText.setPadding(12, 0, 8, 0);
-    TextView appTitle = text("یاسر دیاگ", 28, true);
+    brandText.setPadding(dp(8), 0, dp(6), 0);
+    LinearLayout headerActions = new LinearLayout(this);
+    headerActions.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+    headerActions.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    String[] topIcons = {"⚙", "ⓘ", "☰"};
+    Runnable[] topActions = {() -> show(settingsSection), () -> show(helpSection), () -> show(diagnosticMenu)};
+    for (int ai = 0; ai < topIcons.length; ai++) {
+      final int actionIndex = ai;
+      TextView action = text(topIcons[ai], 20, true);
+      action.setTextColor(Color.rgb(143, 235, 142));
+      action.setGravity(Gravity.CENTER);
+      action.setPadding(dp(7), dp(2), dp(7), dp(2));
+      action.setOnClickListener(v -> topActions[actionIndex].run());
+      headerActions.addView(action);
+    }
+    brandText.addView(headerActions, new LinearLayout.LayoutParams(-1, -2));
+    TextView appTitle = text("یاسر دیاگ", 27, true);
     appTitle.setTextColor(Color.rgb(235, 255, 239));
     brandText.addView(appTitle);
-    TextView appTagline = text("تخصص ما، آرامش خودروی شما", 13, false);
+    TextView appTagline = text("تخصص ما، آرامش خودروی شما", 12, false);
     appTagline.setTextColor(Color.rgb(135, 235, 166));
     brandText.addView(appTagline);
     header.addView(brandText, new LinearLayout.LayoutParams(0, -2, 1));
     root.addView(header, headerParams);
 
     LinearLayout connectionPanel = new LinearLayout(this);
-    connectionPanel.setOrientation(LinearLayout.VERTICAL);
-    connectionPanel.setPadding(10, 7, 10, 7);
+    connectionPanel.setOrientation(LinearLayout.HORIZONTAL);
+    connectionPanel.setGravity(Gravity.CENTER_VERTICAL);
+    connectionPanel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    connectionPanel.setPadding(dp(5), dp(5), dp(5), dp(5));
     connectionPanel.setTag("connection-panel");
-    connectionPanel.setBackground(panelDrawable(Color.rgb(11, 30, 29), Color.rgb(28, 75, 65), 14));
-    status = text("● TCP: متصل نیست؛ ابتدا به دستگاه وصل شوید", 14, true);
+    connectionPanel.setBackground(panelDrawable(Color.rgb(4, 20, 18), Color.rgb(28, 75, 65), 14));
+    TextView connectAction = text("▣ اتصال به دستگاه", 12, true);
+    connectAction.setTextColor(Color.rgb(218, 255, 216));
+    connectAction.setGravity(Gravity.CENTER);
+    connectAction.setPadding(dp(5), dp(8), dp(5), dp(8));
+    connectAction.setBackground(panelDrawable(Color.rgb(10, 58, 24), Color.rgb(61, 180, 68), 10));
+    connectAction.setOnClickListener(v -> connect());
+    connectionPanel.addView(connectAction, new LinearLayout.LayoutParams(0, -2, 1.05f));
+    TextView endpoint = text("E-MAX\n192.168.4.1:3333", 10, true);
+    endpoint.setTextColor(Color.rgb(194, 220, 209));
+    endpoint.setGravity(Gravity.CENTER);
+    connectionPanel.addView(endpoint, new LinearLayout.LayoutParams(0, -2, 1.0f));
+    status = text("● TCP\nمتصل نیست", 10, true);
     status.setTextColor(Color.rgb(83, 224, 183));
-    connectionPanel.addView(status);
-    TextView endpoint = text("دستگاه E-MAX  •  192.168.4.1:3333", 12, false);
-    endpoint.setTextColor(Color.rgb(174, 197, 189));
-    connectionPanel.addView(endpoint);
+    status.setGravity(Gravity.CENTER);
+    connectionPanel.addView(status, new LinearLayout.LayoutParams(0, -2, 1.0f));
     root.addView(connectionPanel);
 
     home = section("");
@@ -136,7 +162,7 @@ public class MainActivity extends Activity {
     content = home;
     content.addView(sectionTitle("انتخاب سازنده خودرو", "۸ گروه خودرو", "🚘"));
     android.widget.GridLayout companyGrid = new android.widget.GridLayout(this);
-    companyGrid.setColumnCount(2);
+    companyGrid.setColumnCount(4);
     companyGrid.setUseDefaultMargins(false);
     companyGrid.setAlignmentMode(android.widget.GridLayout.ALIGN_BOUNDS);
     companyGrid.setTag("company-grid");
@@ -162,7 +188,7 @@ public class MainActivity extends Activity {
 
     home.addView(sectionTitle("تنظیمات و ابزارها", "شخصی‌سازی و نگهداری", "⚙"));
     android.widget.GridLayout toolsGrid = new android.widget.GridLayout(this);
-    toolsGrid.setColumnCount(3);
+    toolsGrid.setColumnCount(6);
     toolsGrid.setUseDefaultMargins(false);
     home.addView(toolsGrid, new LinearLayout.LayoutParams(-1, -2));
     addUtilityCard(toolsGrid, "تنظیمات", "برنامه", "⚙", () -> show(settingsSection));
@@ -231,7 +257,7 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 1.1",16,true));
+    content.addView(text("نسخه برنامه: 1.4",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل عملیاتی فعلی: زیمنس SIM2K‑34VR.",14,false));
     content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
@@ -357,48 +383,46 @@ public class MainActivity extends Activity {
   }
 
   void addIndustrialCompanyCard(android.widget.GridLayout grid, String name, int imageIndex, String code) {
-    LinearLayout card = new LinearLayout(this);
-    card.setOrientation(LinearLayout.HORIZONTAL);
-    card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-    card.setGravity(Gravity.CENTER_VERTICAL);
-    card.setPadding(dp(8), dp(7), dp(8), dp(7));
-    card.setTag("industrial-company");
-    int[] accents = new int[]{Color.rgb(0, 167, 235), Color.rgb(255, 125, 25), Color.rgb(235, 39, 55), Color.rgb(0, 194, 210), Color.rgb(170, 90, 240), Color.rgb(0, 188, 140), Color.rgb(255, 183, 0), Color.rgb(100, 130, 145)};
+    int[] accents = new int[]{Color.rgb(0, 190, 244), Color.rgb(255, 119, 24), Color.rgb(238, 35, 61), Color.rgb(0, 190, 222), Color.rgb(177, 91, 244), Color.rgb(0, 193, 139), Color.rgb(255, 185, 0), Color.rgb(117, 145, 148)};
     int accent = accents[imageIndex % accents.length];
-    card.setBackground(panelDrawable(Color.rgb(8, 22, 25), accent, 14));
+    LinearLayout card = new LinearLayout(this);
+    card.setOrientation(LinearLayout.VERTICAL);
+    card.setGravity(Gravity.CENTER);
+    card.setPadding(dp(3), dp(5), dp(3), dp(4));
+    card.setTag("industrial-company");
+    card.setBackground(panelDrawable(Color.rgb(5, 20, 22), accent, 13));
+
+    TextView badge = text(code, 12, true);
+    badge.setTextColor(accent);
+    badge.setGravity(Gravity.CENTER);
+    badge.setPadding(0, 0, 0, dp(1));
+    card.addView(badge, new LinearLayout.LayoutParams(-1, dp(22)));
+
+    TextView label = text(name, 11, true);
+    label.setTextColor(Color.rgb(239, 248, 243));
+    label.setGravity(Gravity.CENTER);
+    label.setMaxLines(2);
+    label.setMinHeight(dp(30));
+    label.setPadding(0, 0, 0, dp(2));
+    card.addView(label, new LinearLayout.LayoutParams(-1, dp(32)));
 
     ImageView car = new ImageView(this);
     Bitmap bitmap = vehicleBitmap(imageIndex);
     if (bitmap != null) car.setImageBitmap(bitmap);
-    car.setScaleType(ImageView.ScaleType.CENTER_CROP);
-    car.setBackground(panelDrawable(Color.rgb(4, 12, 15), accent, 10));
-    car.setClipToOutline(true);
-    card.addView(car, new LinearLayout.LayoutParams(dp(76), dp(70)));
+    car.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    car.setBackgroundColor(Color.TRANSPARENT);
+    card.addView(car, new LinearLayout.LayoutParams(-1, dp(49)));
 
-    LinearLayout labels = new LinearLayout(this);
-    labels.setOrientation(LinearLayout.VERTICAL);
-    labels.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
-    labels.setPadding(dp(8), 0, dp(5), 0);
-    TextView label = text(name, 14, true);
-    label.setTextColor(Color.rgb(239, 248, 243));
-    label.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-    labels.addView(label, new LinearLayout.LayoutParams(-1, -2));
-    TextView badge = text(code, 10, true);
-    badge.setTextColor(accent);
-    badge.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-    badge.setPadding(0, dp(2), 0, dp(2));
-    labels.addView(badge);
-    TextView enter = text("انتخاب  ›", 11, true);
+    TextView enter = text("›", 18, true);
     enter.setTextColor(accent);
-    enter.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-    enter.setPadding(0, dp(2), 0, 0);
-    labels.addView(enter);
-    card.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+    enter.setGravity(Gravity.CENTER);
+    enter.setPadding(0, 0, 0, 0);
+    card.addView(enter, new LinearLayout.LayoutParams(-1, dp(17)));
 
     card.setOnClickListener(v -> openEcuMenu(name));
     android.widget.GridLayout.LayoutParams p = new android.widget.GridLayout.LayoutParams();
     p.width = 0;
-    p.height = dp(94);
+    p.height = dp(132);
     p.columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f);
     p.setMargins(dp(3), dp(3), dp(3), dp(3));
     grid.addView(card, p);
@@ -725,22 +749,26 @@ public class MainActivity extends Activity {
     } else if (themeMode == 2) {
       navy = Color.rgb(21, 69, 58);
       teal = Color.rgb(0, 126, 96);
-    } else {
+    } else if (themeMode == 0) {
       navy = Color.rgb(13, 26, 44);
       teal = Color.rgb(0, 135, 135);
+    } else {
+      navy = Color.rgb(3, 17, 15);
+      teal = Color.rgb(105, 233, 115);
     }
   }
 
   int pageBackground() {
     if (themeMode == 1) return Color.rgb(14, 29, 47);
-    if (themeMode == 2 || themeMode == 0) return themeMode == 2 ? Color.rgb(235, 246, 240) : Color.rgb(241, 246, 250);
-    return Color.rgb(3, 13, 15);
+    if (themeMode == 2) return Color.rgb(235, 246, 240);
+    if (themeMode == 0) return Color.rgb(241, 246, 250);
+    return Color.rgb(2, 12, 12);
   }
 
   int cardBackground() {
     if (themeMode == 1) return Color.rgb(31, 49, 69);
     if (themeMode == 2 || themeMode == 0) return themeMode == 2 ? Color.rgb(250, 255, 251) : Color.WHITE;
-    return Color.rgb(8, 22, 25);
+    return Color.rgb(5, 20, 22);
   }
 
   int rowBackground(boolean alternate) {
@@ -820,7 +848,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 1.1\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 1.4\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
