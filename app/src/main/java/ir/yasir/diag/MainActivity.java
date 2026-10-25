@@ -66,21 +66,48 @@ public class MainActivity extends Activity {
     scroll.addView(root);
     setContentView(scroll);
     content = root;
+    LinearLayout header = new LinearLayout(this);
+    header.setOrientation(LinearLayout.HORIZONTAL);
+    header.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+    header.setGravity(Gravity.CENTER_VERTICAL);
+    header.setPadding(12, 10, 12, 10);
+    header.setTag("hero-header");
+    header.setBackground(panelDrawable(Color.rgb(7, 20, 19), Color.rgb(45, 126, 74), 18));
+    LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(-1, -2);
+    headerParams.setMargins(0, 0, 0, 10);
     ImageView brandLogo = new ImageView(this);
     brandLogo.setImageResource(R.drawable.yasir_diag_logo);
-    brandLogo.setAdjustViewBounds(true);
-    brandLogo.setMaxHeight(190);
-    brandLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-    LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(-1, 190);
-    logoParams.setMargins(0, 0, 0, 6);
-    root.addView(brandLogo, logoParams);
-    root.addView(text("یاسر دیاگ",29,true));
-    root.addView(text("عیب‌یاب فارسی خودرو • زیمنس SIM2K-34VR",15,false));
-    status = text("ابتدا به وای‌فای E-MAX وصل شوید",15,true);
-    status.setTextColor(teal);
-    root.addView(status);
+    brandLogo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+    brandLogo.setBackground(panelDrawable(Color.rgb(0, 0, 0), Color.rgb(42, 112, 65), 14));
+    brandLogo.setClipToOutline(true);
+    header.addView(brandLogo, new LinearLayout.LayoutParams(88, 88));
+    LinearLayout brandText = new LinearLayout(this);
+    brandText.setOrientation(LinearLayout.VERTICAL);
+    brandText.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+    brandText.setPadding(12, 0, 8, 0);
+    TextView appTitle = text("یاسر دیاگ", 28, true);
+    appTitle.setTextColor(Color.rgb(235, 255, 239));
+    brandText.addView(appTitle);
+    TextView appTagline = text("تخصص ما، آرامش خودروی شما", 13, false);
+    appTagline.setTextColor(Color.rgb(135, 235, 166));
+    brandText.addView(appTagline);
+    header.addView(brandText, new LinearLayout.LayoutParams(0, -2, 1));
+    root.addView(header, headerParams);
 
-    home = section("منوی اصلی");
+    LinearLayout connectionPanel = new LinearLayout(this);
+    connectionPanel.setOrientation(LinearLayout.VERTICAL);
+    connectionPanel.setPadding(10, 7, 10, 7);
+    connectionPanel.setTag("connection-panel");
+    connectionPanel.setBackground(panelDrawable(Color.rgb(11, 30, 29), Color.rgb(28, 75, 65), 14));
+    status = text("● TCP: متصل نیست؛ ابتدا به دستگاه وصل شوید", 14, true);
+    status.setTextColor(Color.rgb(83, 224, 183));
+    connectionPanel.addView(status);
+    TextView endpoint = text("دستگاه E-MAX  •  192.168.4.1:3333", 12, false);
+    endpoint.setTextColor(Color.rgb(174, 197, 189));
+    connectionPanel.addView(endpoint);
+    root.addView(connectionPanel);
+
+    home = section("انتخاب سازنده خودرو");
     parametersMenu = section("پارامترها");
     dashboardSection = section("داشبورد زنده موتور");
     speedSection = section("اطلاعات سیگنال کیلومترشمار");
@@ -101,20 +128,44 @@ public class MainActivity extends Activity {
     helpSection = section("راهنما و اطلاعات برنامه");
 
     content = home;
-    content.addView(text("شرکت سازنده خودرو را انتخاب کنید",20,true));
-    addCompanyCard(home, "ایران خودرو", 0);
-    addCompanyCard(home, "سایپا", 1);
-    addCompanyCard(home, "پارس خودرو", 2);
-    addCompanyCard(home, "بهمن و مزدا", 3);
-    addCompanyCard(home, "دیار خودرو", 4);
-    addCompanyCard(home, "کرمان موتور", 5);
-    addCompanyCard(home, "رنو", 6);
-    addCompanyCard(home, "سایر خودروها", 7);
-    content.addView(text("دسترسی سریع",18,true));
-    button("ورود به عیب‌یابی زیمنس SIM2K-34VR", () -> { selectedBrand = "خودرو انتخاب‌نشده"; selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
-    button("⚙ تنظیمات برنامه", () -> show(settingsSection));
-    button("به‌روزرسانی برنامه", () -> { refreshUpdateInfo(); show(updateSection); });
-    button("راهنما و اطلاعات نسخه", () -> show(helpSection));
+    content.addView(sectionTitle("انتخاب سازنده خودرو", "۸ گروه خودرو", "🚘"));
+    android.widget.GridLayout companyGrid = new android.widget.GridLayout(this);
+    companyGrid.setColumnCount(2);
+    companyGrid.setUseDefaultMargins(false);
+    companyGrid.setAlignmentMode(android.widget.GridLayout.ALIGN_BOUNDS);
+    companyGrid.setTag("company-grid");
+    home.addView(companyGrid, new LinearLayout.LayoutParams(-1, -2));
+    addIndustrialCompanyCard(companyGrid, "ایران خودرو", 0, "IR");
+    addIndustrialCompanyCard(companyGrid, "سایپا", 1, "SA");
+    addIndustrialCompanyCard(companyGrid, "پارس خودرو", 2, "PA");
+    addIndustrialCompanyCard(companyGrid, "بهمن و مزدا", 3, "BM");
+    addIndustrialCompanyCard(companyGrid, "دیار خودرو", 4, "DY");
+    addIndustrialCompanyCard(companyGrid, "کرمان موتور", 5, "KM");
+    addIndustrialCompanyCard(companyGrid, "رنو", 6, "RN");
+    addIndustrialCompanyCard(companyGrid, "سایر خودروها", 7, "•••");
+
+    home.addView(sectionTitle("دسترسی سریع", "ابزارهای پرکاربرد", "⚡"));
+    android.widget.GridLayout quickGrid = new android.widget.GridLayout(this);
+    quickGrid.setColumnCount(2);
+    quickGrid.setUseDefaultMargins(false);
+    home.addView(quickGrid, new LinearLayout.LayoutParams(-1, -2));
+    addQuickCard(quickGrid, "عیب‌یابی سریع", "خواندن و پاک‌کردن خطاها", "⌕", Color.rgb(0, 174, 235), () -> { selectedBrand = selectedBrand.isEmpty() ? "خودرو انتخاب‌نشده" : selectedBrand; selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
+    addQuickCard(quickGrid, "داده‌های زنده", "مشاهده پارامترهای لحظه‌ای", "▥", Color.rgb(0, 214, 133), () -> { if (!"زیمنس SIM2K-34VR".equals(selectedEcu)) selectedEcu = "زیمنس SIM2K-34VR"; show(dashboardSection); });
+    addQuickCard(quickGrid, "تست عملگرها", "تست‌های تعمیرگاهی", "⚙", Color.rgb(255, 176, 0), () -> show(actuatorSection));
+    addQuickCard(quickGrid, "اطلاعات ECU", "شناسه و پروفایل انتخابی", "▤", Color.rgb(181, 93, 255), () -> show(ecuSection));
+
+    home.addView(sectionTitle("تنظیمات و ابزارها", "شخصی‌سازی و نگهداری", "⚙"));
+    android.widget.GridLayout toolsGrid = new android.widget.GridLayout(this);
+    toolsGrid.setColumnCount(3);
+    toolsGrid.setUseDefaultMargins(false);
+    home.addView(toolsGrid, new LinearLayout.LayoutParams(-1, -2));
+    addUtilityCard(toolsGrid, "تنظیمات", "برنامه", "⚙", () -> show(settingsSection));
+    addUtilityCard(toolsGrid, "ظاهر", "رنگ و اندازه", "▣", () -> show(settingsSection));
+    addUtilityCard(toolsGrid, "به‌روزرسانی", "نسخه جدید", "⟳", () -> { refreshUpdateInfo(); show(updateSection); });
+    addUtilityCard(toolsGrid, "گزارش‌ها", "خطا و داده", "▤", () -> show(dtcSection));
+    addUtilityCard(toolsGrid, "راهنما", "اطلاعات نسخه", "ⓘ", () -> show(helpSection));
+    addUtilityCard(toolsGrid, "اتصال", "E-MAX", "⌁", () -> connect());
+    button("ورود به عیب‌یابی زیمنس SIM2K-34VR", () -> { selectedBrand = selectedBrand.isEmpty() ? "خودرو انتخاب‌نشده" : selectedBrand; selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
 
     content = ecuSelectionSection;
     selectedBrandLabel = text("شرکت انتخابی: —",18,true);
@@ -273,6 +324,124 @@ public class MainActivity extends Activity {
     applyThemeToViews(root);
     applyFontScale(root);
     show(home);
+  }
+
+  GradientDrawable panelDrawable(int fill, int stroke, int radiusDp) {
+    GradientDrawable d = new GradientDrawable();
+    d.setColor(fill);
+    d.setCornerRadius(radiusDp * getResources().getDisplayMetrics().density);
+    d.setStroke(Math.max(1, (int)(getResources().getDisplayMetrics().density)), stroke);
+    return d;
+  }
+
+  TextView sectionTitle(String title, String subtitle, String icon) {
+    LinearLayout wrap = new LinearLayout(this);
+    wrap.setOrientation(LinearLayout.VERTICAL);
+    wrap.setPadding(2, 14, 2, 7);
+    TextView heading = text(icon + "  " + title, 19, true);
+    heading.setTextColor(Color.rgb(230, 255, 237));
+    wrap.addView(heading);
+    TextView sub = text(subtitle, 11, false);
+    sub.setTextColor(Color.rgb(127, 180, 153));
+    wrap.addView(sub);
+    return heading;
+  }
+
+  void addIndustrialCompanyCard(android.widget.GridLayout grid, String name, int imageIndex, String code) {
+    LinearLayout card = new LinearLayout(this);
+    card.setOrientation(LinearLayout.VERTICAL);
+    card.setGravity(Gravity.CENTER);
+    card.setPadding(7, 9, 7, 8);
+    card.setTag("industrial-company");
+    int[] accents = new int[]{Color.rgb(0, 167, 235), Color.rgb(255, 125, 25), Color.rgb(235, 39, 55), Color.rgb(0, 194, 210), Color.rgb(170, 90, 240), Color.rgb(0, 188, 140), Color.rgb(255, 183, 0), Color.rgb(100, 130, 145)};
+    int accent = accents[imageIndex % accents.length];
+    card.setBackground(panelDrawable(Color.rgb(8, 22, 25), accent, 16));
+    TextView badge = text(code, 13, true);
+    badge.setGravity(Gravity.CENTER);
+    badge.setTextColor(accent);
+    badge.setPadding(4, 0, 4, 3);
+    card.addView(badge);
+    TextView label = text(name, 15, true);
+    label.setGravity(Gravity.CENTER);
+    label.setTextColor(Color.rgb(239, 248, 243));
+    label.setMinHeight(36);
+    card.addView(label, new LinearLayout.LayoutParams(-1, -2));
+    ImageView car = new ImageView(this);
+    Bitmap bitmap = vehicleBitmap(imageIndex);
+    if (bitmap != null) car.setImageBitmap(bitmap);
+    car.setScaleType(ImageView.ScaleType.CENTER_CROP);
+    car.setBackground(panelDrawable(Color.rgb(4, 12, 15), accent, 10));
+    LinearLayout.LayoutParams carParams = new LinearLayout.LayoutParams(-1, 90);
+    carParams.setMargins(0, 5, 0, 5);
+    card.addView(car, carParams);
+    TextView enter = text("انتخاب  ›", 12, true);
+    enter.setTextColor(accent);
+    enter.setGravity(Gravity.CENTER);
+    card.addView(enter);
+    card.setOnClickListener(v -> openEcuMenu(name));
+    android.widget.GridLayout.LayoutParams p = new android.widget.GridLayout.LayoutParams();
+    p.width = 0;
+    p.height = -2;
+    p.columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f);
+    p.setMargins(4, 4, 4, 4);
+    grid.addView(card, p);
+  }
+
+  void addQuickCard(android.widget.GridLayout grid, String title, String subtitle, String icon, int accent, Runnable action) {
+    LinearLayout card = new LinearLayout(this);
+    card.setOrientation(LinearLayout.HORIZONTAL);
+    card.setGravity(Gravity.CENTER_VERTICAL);
+    card.setPadding(10, 11, 10, 11);
+    card.setTag("quick-card");
+    card.setBackground(panelDrawable(Color.rgb(7, 26, 31), accent, 14));
+    TextView glyph = text(icon, 28, true);
+    glyph.setTextColor(accent);
+    glyph.setGravity(Gravity.CENTER);
+    card.addView(glyph, new LinearLayout.LayoutParams(48, 52));
+    LinearLayout labels = new LinearLayout(this);
+    labels.setOrientation(LinearLayout.VERTICAL);
+    TextView name = text(title, 14, true);
+    name.setTextColor(Color.rgb(239, 248, 243));
+    labels.addView(name);
+    TextView desc = text(subtitle, 10, false);
+    desc.setTextColor(Color.rgb(154, 183, 175));
+    labels.addView(desc);
+    card.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+    card.setOnClickListener(v -> action.run());
+    android.widget.GridLayout.LayoutParams p = new android.widget.GridLayout.LayoutParams();
+    p.width = 0;
+    p.height = -2;
+    p.columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f);
+    p.setMargins(4, 4, 4, 4);
+    grid.addView(card, p);
+  }
+
+  void addUtilityCard(android.widget.GridLayout grid, String title, String subtitle, String icon, Runnable action) {
+    LinearLayout card = new LinearLayout(this);
+    card.setOrientation(LinearLayout.VERTICAL);
+    card.setGravity(Gravity.CENTER);
+    card.setPadding(5, 9, 5, 9);
+    card.setTag("utility-card");
+    card.setBackground(panelDrawable(Color.rgb(10, 27, 29), Color.rgb(42, 76, 73), 12));
+    TextView glyph = text(icon, 25, true);
+    glyph.setTextColor(Color.rgb(105, 233, 115));
+    glyph.setGravity(Gravity.CENTER);
+    card.addView(glyph);
+    TextView name = text(title, 12, true);
+    name.setTextColor(Color.rgb(237, 246, 239));
+    name.setGravity(Gravity.CENTER);
+    card.addView(name);
+    TextView desc = text(subtitle, 10, false);
+    desc.setTextColor(Color.rgb(143, 176, 161));
+    desc.setGravity(Gravity.CENTER);
+    card.addView(desc);
+    card.setOnClickListener(v -> action.run());
+    android.widget.GridLayout.LayoutParams p = new android.widget.GridLayout.LayoutParams();
+    p.width = 0;
+    p.height = -2;
+    p.columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f);
+    p.setMargins(3, 3, 3, 3);
+    grid.addView(card, p);
   }
 
   void addCompanyCard(LinearLayout parent, String name, int imageIndex) {
