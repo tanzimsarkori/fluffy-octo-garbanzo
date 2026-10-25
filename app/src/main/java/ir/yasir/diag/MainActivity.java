@@ -30,7 +30,7 @@ public class MainActivity extends Activity {
   TextView status, rpm, coolant, intake, battery, map, injectors, spark, dtc;
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
   LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, ecuSelectionSection, diagnosticMenu;
-  TextView selectedBrandLabel;
+  TextView selectedBrandLabel, diagnosticSelectionLabel;
   String selectedBrand = "", selectedEcu = "";
   final HashMap<String, TextView> dynamicParameterValues = new HashMap<>();
   final HashMap<String, TextView> dynamicParameterNames = new HashMap<>();
@@ -96,7 +96,7 @@ public class MainActivity extends Activity {
     addCompanyCard(home, "رنو", 6);
     addCompanyCard(home, "سایر خودروها", 7);
     content.addView(text("دسترسی سریع",18,true));
-    button("ورود به عیب‌یابی زیمنس SIM2K-34VR", () -> { selectedBrand = "خودرو انتخاب‌نشده"; selectedEcu = "زیمنس SIM2K-34VR"; show(diagnosticMenu); });
+    button("ورود به عیب‌یابی زیمنس SIM2K-34VR", () -> { selectedBrand = "خودرو انتخاب‌نشده"; selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
 
     content = ecuSelectionSection;
     selectedBrandLabel = text("شرکت انتخابی: —",18,true);
@@ -113,7 +113,8 @@ public class MainActivity extends Activity {
     back(home);
 
     content = diagnosticMenu;
-    content.addView(text("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu,15,true));
+    diagnosticSelectionLabel = text("خودرو: —   |   ECU: —",15,true);
+    content.addView(diagnosticSelectionLabel);
     button("اتصال به دستگاه (Wi-Fi)", () -> connect());
     button("اتصال به ECU", () -> send("!1"));
     button("شناسایی", () -> show(ecuSection));
@@ -276,6 +277,7 @@ public class MainActivity extends Activity {
   void chooseEcu(String ecu) {
     selectedEcu = ecu;
     if ("زیمنس SIM2K-34VR".equals(ecu)) {
+      diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
       show(diagnosticMenu);
       setStatus("پروفایل فعال انتخاب شد: " + selectedBrand + " / " + selectedEcu);
       return;
