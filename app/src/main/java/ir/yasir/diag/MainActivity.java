@@ -461,7 +461,6 @@ public class MainActivity extends Activity {
         String value = rawValue == null || rawValue == JSONObject.NULL ? "—" : String.valueOf(rawValue);
         upsertDynamicParameter(id, name, value, p.optString("unit", ""), p.optString("status", ""));
       }
-      return;
     }
 
     // Backwards-compatible generic renderer: any future scalar JSON field is displayed automatically.
@@ -471,7 +470,7 @@ public class MainActivity extends Activity {
       if ("type".equals(key) || "raw".equals(key) || "parameters".equals(key) ||
           "injectors".equals(key) || "spark".equals(key)) continue;
       Object value = j.opt(key);
-      if (value == null || value == JSONObject.NULL || value instanceof JSONObject || value instanceof JSONArray) continue;
+      if (value == null || value instanceof JSONObject || value instanceof JSONArray) continue;
       String unit = "";
       if ("rpm".equals(key)) unit = "دور/دقیقه";
       else if ("coolant".equals(key) || "intake".equals(key)) unit = "°C";
