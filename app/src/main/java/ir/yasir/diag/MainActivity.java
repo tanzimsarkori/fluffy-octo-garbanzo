@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
   TextView updateInfo;
   SharedPreferences preferences;
   float uiScale = 1.0f;
-  int themeMode = 0;
+  int themeMode = 3;
   final HashMap<String, TextView> dynamicParameterValues = new HashMap<>();
   final HashMap<String, TextView> dynamicParameterNames = new HashMap<>();
   TextView[] injectorValues = new TextView[5];
@@ -54,17 +54,22 @@ public class MainActivity extends Activity {
     super.onCreate(b);
     preferences = getSharedPreferences("yasir_diag_settings", MODE_PRIVATE);
     uiScale = preferences.getFloat("ui_scale", 1.0f);
-    themeMode = preferences.getInt("theme_mode", 0);
+    themeMode = preferences.getInt("theme_mode", 3);
     configurePalette();
     getWindow().setStatusBarColor(navy);
+    LinearLayout appShell = new LinearLayout(this);
+    appShell.setOrientation(LinearLayout.VERTICAL);
+    appShell.setBackgroundColor(Color.rgb(3, 13, 15));
     ScrollView scroll = new ScrollView(this);
+    scroll.setFillViewport(true);
     root = new LinearLayout(this);
     root.setPadding(22,20,22,26);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.rgb(241,246,250));
     root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
     scroll.addView(root);
-    setContentView(scroll);
+    appShell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+    setContentView(appShell);
     content = root;
     LinearLayout header = new LinearLayout(this);
     header.setOrientation(LinearLayout.HORIZONTAL);
@@ -165,7 +170,6 @@ public class MainActivity extends Activity {
     addUtilityCard(toolsGrid, "گزارش‌ها", "خطا و داده", "▤", () -> show(dtcSection));
     addUtilityCard(toolsGrid, "راهنما", "اطلاعات نسخه", "ⓘ", () -> show(helpSection));
     addUtilityCard(toolsGrid, "اتصال", "E-MAX", "⌁", () -> connect());
-    button("ورود به عیب‌یابی زیمنس SIM2K-34VR", () -> { selectedBrand = selectedBrand.isEmpty() ? "خودرو انتخاب‌نشده" : selectedBrand; selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
 
     content = ecuSelectionSection;
     selectedBrandLabel = text("شرکت انتخابی: —",18,true);
@@ -207,7 +211,8 @@ public class MainActivity extends Activity {
     content.addView(text("تغییرات در همین گوشی ذخیره می‌شود و پس از بستن و بازکردن برنامه باقی می‌ماند.",14,false));
     button("رنگ‌بندی: روشن صنعتی", () -> setThemeMode(0));
     button("رنگ‌بندی: آبی نفتی تیره", () -> setThemeMode(1));
-    button("رنگ‌بندی: سبز صنعتی", () -> setThemeMode(2));
+    button("رنگ‌بندی: سبز نئونی تیره", () -> setThemeMode(3));
+    button("رنگ‌بندی: سبز روشن", () -> setThemeMode(2));
     button("اندازه نوشته‌ها: کوچک", () -> setUiScale(0.90f));
     button("اندازه نوشته‌ها: استاندارد", () -> setUiScale(1.0f));
     button("اندازه نوشته‌ها: بزرگ", () -> setUiScale(1.15f));
@@ -321,6 +326,7 @@ public class MainActivity extends Activity {
     back(home);
 
     content = root;
+    addBottomNavigation(appShell);
     applyThemeToViews(root);
     applyFontScale(root);
     show(home);
@@ -334,7 +340,7 @@ public class MainActivity extends Activity {
     return d;
   }
 
-  TextView sectionTitle(String title, String subtitle, String icon) {
+  LinearLayout sectionTitle(String title, String subtitle, String icon) {
     LinearLayout wrap = new LinearLayout(this);
     wrap.setOrientation(LinearLayout.VERTICAL);
     wrap.setPadding(2, 14, 2, 7);
@@ -344,7 +350,7 @@ public class MainActivity extends Activity {
     TextView sub = text(subtitle, 11, false);
     sub.setTextColor(Color.rgb(127, 180, 153));
     wrap.addView(sub);
-    return heading;
+    return wrap;
   }
 
   void addIndustrialCompanyCard(android.widget.GridLayout grid, String name, int imageIndex, String code) {
@@ -442,6 +448,45 @@ public class MainActivity extends Activity {
     p.columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f);
     p.setMargins(3, 3, 3, 3);
     grid.addView(card, p);
+  }
+
+  void addBottomNavigation(LinearLayout shell) {
+    LinearLayout nav = new LinearLayout(this);
+    nav.setOrientation(LinearLayout.HORIZONTAL);
+    nav.setGravity(Gravity.CENTER);
+    nav.setPadding(5, 7, 5, 7);
+    nav.setBackground(panelDrawable(Color.rgb(5, 17, 19), Color.rgb(36, 74, 67), 18));
+    String[] labels = {"خانه", "خودروها", "دیاگ", "گزارش‌ها", "تنظیمات"};
+    String[] icons = {"⌂", "▣", "⌕", "▤", "⚙"};
+    Runnable[] actions = new Runnable[] {
+      () -> show(home),
+      () -> show(ecuSelectionSection),
+      () -> { if (selectedEcu.isEmpty()) selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + (selectedBrand.isEmpty() ? "خودرو انتخاب‌نشده" : selectedBrand) + "   |   ECU: " + selectedEcu); show(diagnosticMenu); },
+      () -> show(dtcSection),
+      () -> show(settingsSection)
+    };
+    for (int i=0; i<labels.length; i++) {
+      final int index = i;
+      LinearLayout item = new LinearLayout(this);
+      item.setOrientation(LinearLayout.VERTICAL);
+      item.setGravity(Gravity.CENTER);
+      item.setPadding(2, 4, 2, 4);
+      TextView glyph = text(icons[i], 22, true);
+      glyph.setGravity(Gravity.CENTER);
+      glyph.setTextColor(i == 0 ? Color.rgb(99, 245, 106) : Color.rgb(153, 174, 170));
+      glyph.setPadding(2, 0, 2, 0);
+      item.addView(glyph);
+      TextView label = text(labels[i], 10, true);
+      label.setGravity(Gravity.CENTER);
+      label.setTextColor(i == 0 ? Color.rgb(120, 239, 135) : Color.rgb(164, 181, 176));
+      label.setPadding(0, 0, 0, 0);
+      item.addView(label);
+      item.setOnClickListener(v -> actions[index].run());
+      nav.addView(item, new LinearLayout.LayoutParams(0, -2, 1));
+    }
+    LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
+    p.setMargins(8, 5, 8, 7);
+    shell.addView(nav, p);
   }
 
   void addCompanyCard(LinearLayout parent, String name, int imageIndex) {
@@ -677,14 +722,14 @@ public class MainActivity extends Activity {
 
   int pageBackground() {
     if (themeMode == 1) return Color.rgb(14, 29, 47);
-    if (themeMode == 2) return Color.rgb(235, 246, 240);
-    return Color.rgb(241, 246, 250);
+    if (themeMode == 2 || themeMode == 0) return themeMode == 2 ? Color.rgb(235, 246, 240) : Color.rgb(241, 246, 250);
+    return Color.rgb(3, 13, 15);
   }
 
   int cardBackground() {
     if (themeMode == 1) return Color.rgb(31, 49, 69);
-    if (themeMode == 2) return Color.rgb(250, 255, 251);
-    return Color.WHITE;
+    if (themeMode == 2 || themeMode == 0) return themeMode == 2 ? Color.rgb(250, 255, 251) : Color.WHITE;
+    return Color.rgb(8, 22, 25);
   }
 
   int rowBackground(boolean alternate) {
@@ -694,7 +739,7 @@ public class MainActivity extends Activity {
   }
 
   int foregroundColor() {
-    return themeMode == 1 ? Color.rgb(239, 247, 252) : Color.rgb(25, 34, 46);
+    return (themeMode == 1 || themeMode == 3) ? Color.rgb(239, 247, 252) : Color.rgb(25, 34, 46);
   }
 
   void setThemeMode(int mode) {
