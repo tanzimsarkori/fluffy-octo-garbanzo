@@ -625,46 +625,57 @@ void liveObdParameterCandidates() {
     return;
   }
 
-  Serial.println("\n========== YASIR ECU PARAMETER SCAN ==========");
-  Serial.println("RAW BYTE CANDIDATES - NOT CONFIRMED SENSOR VALUES");
-  Serial.println("--- SINGLE BYTE FORMULAS ---");
-  for (uint8_t i=0; i<93; ++i) {
-    float a=(float)d[i];
-    Serial.print("d[");
-    if (i<10) Serial.print("0");
-    Serial.print(i);
-    Serial.print("] RAW=");
-    if (d[i]<100) Serial.print(" ");
-    if (d[i]<10) Serial.print(" ");
-    Serial.print(d[i]);
-    Serial.print(" | A-40=");
-    Serial.print(a-40.0f,1);
-    Serial.print(" | 100A/255=");
-    Serial.print(100.0f*a/255.0f,1);
-    Serial.println("%");
+  // Clean dashboard: show only evidence-backed candidates from this Siemens block.
+  Serial.println("\n========== YASIR ECU PANEL V35 ==========");
+  Serial.println("LIVE VALUES / CANDIDATES");
+  Serial.println("-----------------------------------------");
+
+  uint16_t rpm255 = (uint16_t)d[20] * 255U + d[19];
+  Serial.print("RPM candidate (d20*255+d19): "); Serial.print(rpm255);
+  Serial.print("  [raw "); hexByte(d[19]); Serial.print(" "); hexByte(d[20]); Serial.println("]");
+
+  Serial.print("BATTERY candidate (d0/10): "); Serial.print((float)d[0] / 10.0f, 1);
+  Serial.print(" V  [raw "); hexByte(d[0]); Serial.println("]");
+
+  Serial.print("COOLANT raw d[2]: "); Serial.print(d[2]);
+  Serial.print("  ["); hexByte(d[2]); Serial.println("] formula not verified");
+  Serial.print("INTAKE raw d[4]: "); Serial.print(d[4]);
+  Serial.print("  ["); hexByte(d[4]); Serial.println("] formula not verified");
+  Serial.print("MAP candidate raw d[25]: "); Serial.print(d[25]);
+  Serial.print("  ["); hexByte(d[25]); Serial.println("] formula not verified");
+
+  Serial.println("-----------------------------------------");
+  Serial.println("RAW d[00..15] candidates: raw and percent=100*A/255");
+  for (uint8_t i=0; i<16; ++i) {
+    Serial.print("d["); if(i<10) Serial.print("0"); Serial.print(i);
+    Serial.print("] = "); if(d[i]<100) Serial.print(" "); if(d[i]<10) Serial.print(" ");
+    Serial.print(d[i]); Serial.print("  |  percent candidate = ");
+    Serial.print(100.0f * (float)d[i] / 255.0f, 1); Serial.println("%");
   }
 
-  Serial.println("--- TWO BYTE FORMULAS (HIGH BYTE FIRST) ---");
-  for (uint8_t i=0; i<92; ++i) {
-    uint16_t word=(uint16_t)d[i]*256U+(uint16_t)d[i+1];
-    Serial.print("d[");
-    if (i<10) Serial.print("0");
-    Serial.print(i);
-    Serial.print(":");
-    if (i+1<10) Serial.print("0");
-    Serial.print(i+1);
-    Serial.print("] WORD=");
-    Serial.print(word);
-    Serial.print(" | /4=");
-    Serial.print(word/4.0f,1);
-    Serial.print(" | /100=");
-    Serial.print(word/100.0f,2);
-    Serial.print(" | /1000=");
-    Serial.println(word/1000.0f,3);
-  }
-  Serial.println("These are mathematical candidates, not identified ECU parameters.");
-  Serial.println("Change one tester value and send 2 again to compare.");
-  Serial.println("==============================================");
+  Serial.println("-----------------------------------------");
+  Serial.print("SPARK raw d[29..32]: ");
+  for (uint8_t i=29; i<=32; ++i) { hexByte(d[i]); if(i<32) Serial.print(" "); }
+  Serial.println();
+  Serial.print("INJECTOR raw d[33..42]: ");
+  for (uint8_t i=33; i<=42; ++i) { hexByte(d[i]); if(i<42) Serial.print(" "); }
+  Serial.println();
+
+  Serial.println("-----------------------------------------");
+  Serial.println("STANDARD OBD-II FORMULA REFERENCE (not mapped to d[] yet)");
+  Serial.println("RPM PID 0C: (256*A+B)/4");
+  Serial.println("Coolant PID 05, Intake PID 0F, Ambient temp PID 46, Oil temp PID 5C: A-40 C");
+  Serial.println("MAP PID 0B, Ambient pressure PID 33, Speed PID 0D: A");
+  Serial.println("TPS PID 11, Load PID 04, Fuel level PID 2F: 100*A/255 %");
+  Serial.println("Timing PID 0E: A/2-64 deg; Fuel pressure PID 0A: 3*A kPa");
+  Serial.println("MAF PID 10: (256*A+B)/100 g/s");
+  Serial.println("ECU voltage PID 42: (256*A+B)/1000 V");
+  Serial.println("Fuel trims PID 06/07: 100*(A-128)/128 %");
+  Serial.println("O2 voltage PID 14: A/200 V");
+  Serial.println("Catalyst temp PID 3C: (256*A+B)/10-40 C");
+  Serial.println("Fuel rate PID 5E: (256*A+B)/20 L/h; runtime PID 1F: 256*A+B sec");
+  Serial.println("IMPORTANT: standard OBD PIDs are reference formulas only. This ECU's 21 01 local block is not yet mapped.");
+  Serial.println("=========================================");
 }
 
 void labCsv() {
