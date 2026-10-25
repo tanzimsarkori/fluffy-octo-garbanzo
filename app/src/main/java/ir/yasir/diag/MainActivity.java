@@ -9,6 +9,9 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.BitmapRegionDecoder;
+import android.graphics.Rect;
+import android.graphics.drawable.GradientDrawable;
 import android.widget.ImageView;
 import android.view.Gravity;
 import android.view.View;
@@ -26,7 +29,9 @@ public class MainActivity extends Activity {
   OutputStream out;
   TextView status, rpm, coolant, intake, battery, map, injectors, spark, dtc;
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
-  LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList;
+  LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, ecuSelectionSection, diagnosticMenu;
+  TextView selectedBrandLabel;
+  String selectedBrand = "", selectedEcu = "";
   final HashMap<String, TextView> dynamicParameterValues = new HashMap<>();
   final HashMap<String, TextView> dynamicParameterNames = new HashMap<>();
   TextView[] injectorValues = new TextView[5];
@@ -77,8 +82,38 @@ public class MainActivity extends Activity {
     resetSection = section("ریست مقادیر سازگار یافته");
     chartSection = section("نمودارها");
     dynamicParametersSection = section("پارامترهای زنده و قابل توسعه");
+    ecuSelectionSection = section("انتخاب ECU");
+    diagnosticMenu = section("منوی عیب‌یابی");
 
     content = home;
+    content.addView(text("شرکت سازنده خودرو را انتخاب کنید",20,true));
+    addCompanyCard(home, "ایران خودرو", 0);
+    addCompanyCard(home, "سایپا", 1);
+    addCompanyCard(home, "پارس خودرو", 2);
+    addCompanyCard(home, "بهمن و مزدا", 3);
+    addCompanyCard(home, "دیار خودرو", 4);
+    addCompanyCard(home, "کرمان موتور", 5);
+    addCompanyCard(home, "رنو", 6);
+    addCompanyCard(home, "سایر خودروها", 7);
+    content.addView(text("دسترسی سریع",18,true));
+    button("ورود به عیب‌یابی زیمنس SIM2K-34VR", () -> { selectedBrand = "خودرو انتخاب‌نشده"; selectedEcu = "زیمنس SIM2K-34VR"; show(diagnosticMenu); });
+
+    content = ecuSelectionSection;
+    selectedBrandLabel = text("شرکت انتخابی: —",18,true);
+    content.addView(selectedBrandLabel);
+    content.addView(text("نوع ECU را انتخاب کنید. فقط پروفایل زیمنس SIM2K-34VR در حال حاضر به فریم‌ور متصل است؛ سایر موارد فعلاً در فهرست انتخاب هستند و تا آماده‌شدن پروفایل اختصاصی فرمان عیب‌یابی نمی‌فرستند.",14,false));
+    button("زیمنس SIM2K-34VR — پروفایل فعال فعلی", () -> chooseEcu("زیمنس SIM2K-34VR"));
+    button("زیمنس", () -> chooseEcu("زیمنس"));
+    button("زیمنس دوگانه‌سوز", () -> chooseEcu("زیمنس دوگانه‌سوز"));
+    button("ساژم (SAGEM)", () -> chooseEcu("ساژم (SAGEM)"));
+    button("بوش (BOSCH)", () -> chooseEcu("بوش (BOSCH)"));
+    button("والئو (VALEO)", () -> chooseEcu("والئو (VALEO)"));
+    button("عظام", () -> chooseEcu("عظام"));
+    button("SB13", () -> chooseEcu("SB13"));
+    back(home);
+
+    content = diagnosticMenu;
+    content.addView(text("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu,15,true));
     button("اتصال به دستگاه (Wi-Fi)", () -> connect());
     button("اتصال به ECU", () -> send("!1"));
     button("شناسایی", () -> show(ecuSection));
@@ -91,6 +126,8 @@ public class MainActivity extends Activity {
     button("ریست کردن مقادیر سازگار یافته", () -> show(resetSection));
     button("نمودار", () -> show(chartSection));
     button("قطع اتصال", () -> disconnect());
+    button("تغییر شرکت / ECU", () -> show(home));
+    back(home);
 
     content = dashboardSection;
     dashRpm = field("دور موتور");
@@ -183,6 +220,73 @@ public class MainActivity extends Activity {
     show(home);
   }
 
+  void addCompanyCard(LinearLayout parent, String name, int imageIndex) {
+    LinearLayout row = new LinearLayout(this);
+    row.setOrientation(LinearLayout.HORIZONTAL);
+    row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setPadding(8, 7, 12, 7);
+    GradientDrawable bg = new GradientDrawable();
+    bg.setColor((parent.getChildCount() % 2 == 0) ? Color.WHITE : Color.rgb(234,236,240));
+    bg.setCornerRadius(10);
+    bg.setStroke(1, Color.rgb(31,44,112));
+    row.setBackground(bg);
+    LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, 104);
+    rowParams.setMargins(0, 3, 0, 3);
+
+    ImageView car = new ImageView(this);
+    Bitmap bitmap = vehicleBitmap(imageIndex);
+    if (bitmap != null) car.setImageBitmap(bitmap);
+    car.setScaleType(ImageView.ScaleType.CENTER_CROP);
+    row.addView(car, new LinearLayout.LayoutParams(124, 88));
+
+    TextView label = text(name, 20, true);
+    label.setGravity(Gravity.CENTER);
+    label.setTextColor(Color.rgb(25,28,35));
+    row.addView(label, new LinearLayout.LayoutParams(0, -1, 1));
+    row.setOnClickListener(v -> openEcuMenu(name));
+    parent.addView(row, rowParams);
+  }
+
+  Bitmap vehicleBitmap(int index) {
+    BitmapRegionDecoder decoder = null;
+    try {
+      decoder = BitmapRegionDecoder.newInstance(getResources().openRawResource(R.drawable.cars_grid), false);
+      int cellW = decoder.getWidth() / 3;
+      int cellH = decoder.getHeight() / 3;
+      int col = Math.max(0, Math.min(2, index % 3));
+      int row = Math.max(0, Math.min(2, index / 3));
+      int left = col * cellW + 1, top = row * cellH + 1;
+      int right = Math.min(decoder.getWidth(), (col + 1) * cellW - 1);
+      int bottom = Math.min(decoder.getHeight(), (row + 1) * cellH - 1);
+      return decoder.decodeRegion(new Rect(left, top, right, bottom), new BitmapFactory.Options());
+    } catch (Exception ignored) {
+      return null;
+    } finally {
+      if (decoder != null) decoder.recycle();
+    }
+  }
+
+  void openEcuMenu(String brand) {
+    selectedBrand = brand;
+    selectedBrandLabel.setText("شرکت انتخابی: " + brand);
+    show(ecuSelectionSection);
+  }
+
+  void chooseEcu(String ecu) {
+    selectedEcu = ecu;
+    if ("زیمنس SIM2K-34VR".equals(ecu)) {
+      show(diagnosticMenu);
+      setStatus("پروفایل فعال انتخاب شد: " + selectedBrand + " / " + selectedEcu);
+      return;
+    }
+    new AlertDialog.Builder(this)
+      .setTitle(ecu)
+      .setMessage("این ECU در فهرست انتخاب ثبت شد، اما پروفایل ارتباطی و فرمول‌های اختصاصی آن هنوز به‌صورت عملیاتی تأیید نشده‌اند. برای جلوگیری از ارسال فرمان اشتباه، فعلاً تست، پاک‌کردن خطا و فرمان‌های ECU برای این انتخاب فعال نمی‌شوند.")
+      .setPositiveButton("متوجه شدم", (d,w) -> show(ecuSelectionSection))
+      .show();
+  }
+
   LinearLayout section(String title) {
     LinearLayout section = new LinearLayout(this);
     section.setOrientation(LinearLayout.VERTICAL);
@@ -249,6 +353,8 @@ public class MainActivity extends Activity {
 
   @Override public void onBackPressed() {
     if(currentScreen == home) super.onBackPressed();
+    else if(currentScreen == ecuSelectionSection) show(home);
+    else if(currentScreen == diagnosticMenu) show(home);
     else if(currentScreen == speedSection || currentScreen == emissionsSection || currentScreen == ignitionSection || currentScreen == airSection || currentScreen == fuelSection) show(parametersMenu);
     else show(home);
   }
