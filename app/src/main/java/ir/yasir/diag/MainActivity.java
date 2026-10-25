@@ -171,14 +171,14 @@ public class MainActivity extends Activity {
     companyGrid.setAlignmentMode(android.widget.GridLayout.ALIGN_BOUNDS);
     companyGrid.setTag("company-grid");
     home.addView(companyGrid, new LinearLayout.LayoutParams(-1, -2));
-    addIndustrialCompanyCard(companyGrid, "ایران خودرو", 0, "IR");
-    addIndustrialCompanyCard(companyGrid, "سایپا", 1, "SA");
-    addIndustrialCompanyCard(companyGrid, "پارس خودرو", 2, "PA");
     addIndustrialCompanyCard(companyGrid, "بهمن و مزدا", 3, "BM");
-    addIndustrialCompanyCard(companyGrid, "دیار خودرو", 4, "DY");
-    addIndustrialCompanyCard(companyGrid, "کرمان موتور", 5, "KM");
-    addIndustrialCompanyCard(companyGrid, "رنو", 6, "RN");
+    addIndustrialCompanyCard(companyGrid, "پارس خودرو", 2, "PA");
+    addIndustrialCompanyCard(companyGrid, "سایپا", 1, "SA");
+    addIndustrialCompanyCard(companyGrid, "ایران خودرو", 0, "IR");
     addIndustrialCompanyCard(companyGrid, "سایر خودروها", 7, "•••");
+    addIndustrialCompanyCard(companyGrid, "رنو", 6, "RN");
+    addIndustrialCompanyCard(companyGrid, "کرمان موتور", 5, "KM");
+    addIndustrialCompanyCard(companyGrid, "دیار خودرو", 4, "DY");
 
     home.addView(sectionTitle("دسترسی سریع", "ابزارهای پرکاربرد", "⚡"));
     android.widget.GridLayout quickGrid = new android.widget.GridLayout(this);
