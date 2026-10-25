@@ -34,6 +34,9 @@ public class MainActivity extends Activity {
   TextView status, rpm, coolant, intake, battery, map, injectors, spark, dtc;
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
   LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, ecuSelectionSection, diagnosticMenu, settingsSection, updateSection, helpSection;
+  ScrollView scrollContainer;
+  final HashMap<Integer, Bitmap> vehiclePhotoCache = new HashMap<>();
+  final HashMap<Integer, Boolean> vehiclePhotoLoading = new HashMap<>();
   TextView selectedBrandLabel, diagnosticSelectionLabel;
   String selectedBrand = "", selectedEcu = "";
   TextView updateInfo;
@@ -61,6 +64,7 @@ public class MainActivity extends Activity {
     appShell.setOrientation(LinearLayout.VERTICAL);
     appShell.setBackgroundColor(Color.rgb(3, 13, 15));
     ScrollView scroll = new ScrollView(this);
+    scrollContainer = scroll;
     scroll.setFillViewport(true);
     scroll.setClipToPadding(false);
     root = new LinearLayout(this);
@@ -407,11 +411,14 @@ public class MainActivity extends Activity {
     card.addView(label, new LinearLayout.LayoutParams(-1, dp(32)));
 
     ImageView car = new ImageView(this);
+    car.setTag(Integer.valueOf(imageIndex));
     Bitmap bitmap = vehicleBitmap(imageIndex);
     if (bitmap != null) car.setImageBitmap(bitmap);
-    car.setScaleType(ImageView.ScaleType.FIT_CENTER);
-    car.setBackgroundColor(Color.TRANSPARENT);
-    card.addView(car, new LinearLayout.LayoutParams(-1, dp(49)));
+    car.setScaleType(ImageView.ScaleType.CENTER_CROP);
+    car.setBackground(panelDrawable(Color.rgb(2, 13, 13), Color.rgb(22, 52, 43), 8));
+    car.setClipToOutline(true);
+    card.addView(car, new LinearLayout.LayoutParams(-1, dp(68)));
+    loadVehiclePhoto(car, imageIndex);
 
     TextView enter = text("›", 18, true);
     enter.setTextColor(accent);
@@ -422,7 +429,7 @@ public class MainActivity extends Activity {
     card.setOnClickListener(v -> openEcuMenu(name));
     android.widget.GridLayout.LayoutParams p = new android.widget.GridLayout.LayoutParams();
     p.width = 0;
-    p.height = dp(132);
+    p.height = dp(151);
     p.columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f);
     p.setMargins(dp(3), dp(3), dp(3), dp(3));
     grid.addView(card, p);
@@ -553,6 +560,58 @@ public class MainActivity extends Activity {
     parent.addView(row, rowParams);
   }
 
+  void loadVehiclePhoto(ImageView target, int index) {
+    Bitmap cached;
+    synchronized (vehiclePhotoCache) {
+      cached = vehiclePhotoCache.get(index);
+      if (cached != null) {
+        target.setImageBitmap(cached);
+        return;
+      }
+      if (Boolean.TRUE.equals(vehiclePhotoLoading.get(index))) return;
+      vehiclePhotoLoading.put(index, Boolean.TRUE);
+    }
+    final String[] urls = new String[] {
+      "https://images.unsplash.com/photo-1674110958136-40fd83adc9e3?auto=format&fit=crop&fm=jpg&ixid=NHwxMjA3fDA%3D&ixlib=rb-4.1.0&q=85&w=900",
+      "https://images.unsplash.com/photo-1760713170685-b67abc3be5ad?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.1.0&q=85&w=900",
+      "https://images.unsplash.com/photo-1764962904631-98f6c441a2b8?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.1.0&q=85&w=900",
+      "https://images.unsplash.com/photo-1564063812-442d960674c5?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.1.0&q=85&w=900",
+      "https://images.unsplash.com/photo-1750830331454-86df5c088ca7?auto=format&fit=crop&fm=jpg&ixid=NHwxMjA3fDA%3D&ixlib=rb-4.1.0&q=85&w=900",
+      "https://images.unsplash.com/photo-1704476944918-c1258561ebb9?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.1.0&q=85&w=900",
+      "https://images.unsplash.com/photo-1698237551041-682150030b13?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.1.0&q=85&w=900",
+      "https://images.unsplash.com/photo-1669676867270-9d7afd8cd656?auto=format&fit=crop&fm=jpg&ixid=NHwxMjA3fDA%3D&ixlib=rb-4.1.0&q=85&w=900"
+    };
+    new Thread(() -> {
+      HttpURLConnection connection = null;
+      Bitmap photo = null;
+      try {
+        connection = (HttpURLConnection)new URL(urls[Math.max(0, Math.min(urls.length - 1, index))]).openConnection();
+        connection.setConnectTimeout(10000);
+        connection.setReadTimeout(12000);
+        connection.setInstanceFollowRedirects(true);
+        connection.setRequestProperty("User-Agent", "YasirDiagAndroid/1.5");
+        connection.connect();
+        try (InputStream input = connection.getInputStream()) {
+          BitmapFactory.Options options = new BitmapFactory.Options();
+          options.inPreferredConfig = Bitmap.Config.RGB_565;
+          photo = BitmapFactory.decodeStream(input, null, options);
+        }
+      } catch (Exception ignored) {
+      } finally {
+        if (connection != null) connection.disconnect();
+      }
+      final Bitmap result = photo;
+      synchronized (vehiclePhotoCache) {
+        vehiclePhotoLoading.remove(index);
+        if (result != null) vehiclePhotoCache.put(index, result);
+      }
+      if (result != null) ui.post(() -> {
+        Object tag = target.getTag();
+        if (tag instanceof Integer && ((Integer)tag).intValue() == index) target.setImageBitmap(result);
+      });
+    }, "vehicle-photo-" + index).start();
+  }
+
   Bitmap vehicleBitmap(int index) {
     BitmapRegionDecoder decoder = null;
     try {
@@ -606,6 +665,9 @@ public class MainActivity extends Activity {
     if(currentScreen != null) currentScreen.setVisibility(View.GONE);
     currentScreen = screen;
     screen.setVisibility(View.VISIBLE);
+    if (screen == home && scrollContainer != null) {
+      scrollContainer.post(() -> scrollContainer.scrollTo(0, 0));
+    }
   }
 
   void back(LinearLayout target) {
