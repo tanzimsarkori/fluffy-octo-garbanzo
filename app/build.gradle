@@ -1,5 +1,5 @@
 plugins { id 'com.android.application' }
 android { namespace 'ir.yasir.diag'; compileSdk 35
- defaultConfig { applicationId 'ir.yasir.diag'; minSdk 23; targetSdk 28; versionCode 5; versionName '1.4' }
+ defaultConfig { applicationId 'ir.yasir.diag'; minSdk 23; targetSdk 28; versionCode 6; versionName '1.5' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
 }
