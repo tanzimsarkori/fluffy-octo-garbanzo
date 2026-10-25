@@ -5,6 +5,10 @@ import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.content.SharedPreferences;
+import android.content.Intent;
+import android.net.Uri;
+import android.util.TypedValue;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.Bitmap;
@@ -29,9 +33,13 @@ public class MainActivity extends Activity {
   OutputStream out;
   TextView status, rpm, coolant, intake, battery, map, injectors, spark, dtc;
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
-  LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, ecuSelectionSection, diagnosticMenu;
+  LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, ecuSelectionSection, diagnosticMenu, settingsSection, updateSection, helpSection;
   TextView selectedBrandLabel, diagnosticSelectionLabel;
   String selectedBrand = "", selectedEcu = "";
+  TextView updateInfo;
+  SharedPreferences preferences;
+  float uiScale = 1.0f;
+  int themeMode = 0;
   final HashMap<String, TextView> dynamicParameterValues = new HashMap<>();
   final HashMap<String, TextView> dynamicParameterNames = new HashMap<>();
   TextView[] injectorValues = new TextView[5];
@@ -40,10 +48,14 @@ public class MainActivity extends Activity {
   LinearLayout dashboardSection;
   final String host = "192.168.4.1";
   final int port = 3333;
-  final int navy = Color.rgb(13,26,44), teal = Color.rgb(0,135,135);
+  int navy = Color.rgb(13,26,44), teal = Color.rgb(0,135,135);
 
   @Override public void onCreate(Bundle b) {
     super.onCreate(b);
+    preferences = getSharedPreferences("yasir_diag_settings", MODE_PRIVATE);
+    uiScale = preferences.getFloat("ui_scale", 1.0f);
+    themeMode = preferences.getInt("theme_mode", 0);
+    configurePalette();
     getWindow().setStatusBarColor(navy);
     ScrollView scroll = new ScrollView(this);
     root = new LinearLayout(this);
@@ -84,6 +96,9 @@ public class MainActivity extends Activity {
     dynamicParametersSection = section("پارامترهای زنده و قابل توسعه");
     ecuSelectionSection = section("انتخاب ECU");
     diagnosticMenu = section("منوی عیب‌یابی");
+    settingsSection = section("تنظیمات ظاهری و برنامه");
+    updateSection = section("به‌روزرسانی برنامه");
+    helpSection = section("راهنما و اطلاعات برنامه");
 
     content = home;
     content.addView(text("شرکت سازنده خودرو را انتخاب کنید",20,true));
@@ -97,6 +112,9 @@ public class MainActivity extends Activity {
     addCompanyCard(home, "سایر خودروها", 7);
     content.addView(text("دسترسی سریع",18,true));
     button("ورود به عیب‌یابی زیمنس SIM2K-34VR", () -> { selectedBrand = "خودرو انتخاب‌نشده"; selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
+    button("⚙ تنظیمات برنامه", () -> show(settingsSection));
+    button("به‌روزرسانی برنامه", () -> { refreshUpdateInfo(); show(updateSection); });
+    button("راهنما و اطلاعات نسخه", () -> show(helpSection));
 
     content = ecuSelectionSection;
     selectedBrandLabel = text("شرکت انتخابی: —",18,true);
@@ -128,6 +146,40 @@ public class MainActivity extends Activity {
     button("نمودار", () -> show(chartSection));
     button("قطع اتصال", () -> disconnect());
     button("تغییر شرکت / ECU", () -> show(home));
+    button("⚙ تنظیمات برنامه", () -> show(settingsSection));
+    button("به‌روزرسانی برنامه", () -> { refreshUpdateInfo(); show(updateSection); });
+    button("راهنما و اطلاعات نسخه", () -> show(helpSection));
+    back(home);
+
+    content = settingsSection;
+    content.addView(text("ظاهر صنعتی برنامه",18,true));
+    content.addView(text("تغییرات در همین گوشی ذخیره می‌شود و پس از بستن و بازکردن برنامه باقی می‌ماند.",14,false));
+    button("رنگ‌بندی: روشن صنعتی", () -> setThemeMode(0));
+    button("رنگ‌بندی: آبی نفتی تیره", () -> setThemeMode(1));
+    button("رنگ‌بندی: سبز صنعتی", () -> setThemeMode(2));
+    button("اندازه نوشته‌ها: کوچک", () -> setUiScale(0.90f));
+    button("اندازه نوشته‌ها: استاندارد", () -> setUiScale(1.0f));
+    button("اندازه نوشته‌ها: بزرگ", () -> setUiScale(1.15f));
+    button("اندازه نوشته‌ها: خیلی بزرگ", () -> setUiScale(1.30f));
+    button("بازگردانی تنظیمات ظاهری", () -> { setThemeMode(0); setUiScale(1.0f); });
+    back(home);
+
+    content = updateSection;
+    updateInfo = text("در حال آماده‌سازی اطلاعات نسخه...",15,false);
+    content.addView(updateInfo);
+    button("بررسی نسخه منتشرشده", () -> checkForUpdates());
+    button("باز کردن صفحه رسمی نسخه‌ها", () -> openReleasePage());
+    content.addView(text("برای نصب نسخه جدید، فایل APK را فقط از صفحه رسمی پروژه دریافت کنید. نسخه فعلی را تا پیش از اطمینان از اتصال و عملکرد، حذف نکنید.",14,false));
+    back(home);
+
+    content = helpSection;
+    content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
+    content.addView(text("نسخه برنامه: 1.1",16,true));
+    content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل عملیاتی فعلی: زیمنس SIM2K‑34VR.",14,false));
+    content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
+    content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
+    button("تنظیمات برنامه", () -> show(settingsSection));
+    button("صفحه به‌روزرسانی", () -> { refreshUpdateInfo(); show(updateSection); });
     back(home);
 
     content = dashboardSection;
@@ -218,6 +270,8 @@ public class MainActivity extends Activity {
     back(home);
 
     content = root;
+    applyThemeToViews(root);
+    applyFontScale(root);
     show(home);
   }
 
@@ -231,6 +285,7 @@ public class MainActivity extends Activity {
     bg.setColor((parent.getChildCount() % 2 == 0) ? Color.WHITE : Color.rgb(234,236,240));
     bg.setCornerRadius(10);
     bg.setStroke(1, Color.rgb(31,44,112));
+    row.setTag("company-card");
     row.setBackground(bg);
     LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, 104);
     rowParams.setMargins(0, 3, 0, 3);
@@ -376,6 +431,7 @@ public class MainActivity extends Activity {
     LinearLayout card = new LinearLayout(this);
     card.setOrientation(LinearLayout.VERTICAL);
     card.setPadding(15,12,15,12);
+    card.setTag("value-card");
     card.setBackgroundColor(Color.WHITE);
     LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,-2);
     p.setMargins(0,7,0,7);
@@ -393,6 +449,7 @@ public class MainActivity extends Activity {
     line.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
     line.setGravity(Gravity.CENTER_VERTICAL);
     line.setPadding(12,18,12,18);
+    line.setTag("table-row");
     line.setBackgroundColor((content.getChildCount()%2==0) ? Color.rgb(224,233,244) : Color.WHITE);
     TextView value = text("—",17,true);
     value.setGravity(Gravity.CENTER);
@@ -434,6 +491,155 @@ public class MainActivity extends Activity {
     b.setAllCaps(false);
     content.addView(b);
     b.setOnClickListener(v -> r.run());
+  }
+
+  void configurePalette() {
+    if (themeMode == 1) {
+      navy = Color.rgb(8, 20, 35);
+      teal = Color.rgb(65, 211, 196);
+    } else if (themeMode == 2) {
+      navy = Color.rgb(21, 69, 58);
+      teal = Color.rgb(0, 126, 96);
+    } else {
+      navy = Color.rgb(13, 26, 44);
+      teal = Color.rgb(0, 135, 135);
+    }
+  }
+
+  int pageBackground() {
+    if (themeMode == 1) return Color.rgb(14, 29, 47);
+    if (themeMode == 2) return Color.rgb(235, 246, 240);
+    return Color.rgb(241, 246, 250);
+  }
+
+  int cardBackground() {
+    if (themeMode == 1) return Color.rgb(31, 49, 69);
+    if (themeMode == 2) return Color.rgb(250, 255, 251);
+    return Color.WHITE;
+  }
+
+  int rowBackground(boolean alternate) {
+    if (themeMode == 1) return alternate ? Color.rgb(37, 57, 77) : Color.rgb(27, 44, 63);
+    if (themeMode == 2) return alternate ? Color.rgb(224, 240, 231) : Color.WHITE;
+    return alternate ? Color.rgb(234, 236, 240) : Color.WHITE;
+  }
+
+  int foregroundColor() {
+    return themeMode == 1 ? Color.rgb(239, 247, 252) : Color.rgb(25, 34, 46);
+  }
+
+  void setThemeMode(int mode) {
+    themeMode = mode;
+    preferences.edit().putInt("theme_mode", mode).apply();
+    configurePalette();
+    applyThemeToViews(root);
+    setStatus("رنگ‌بندی ذخیره شد");
+  }
+
+  void setUiScale(float scale) {
+    uiScale = scale;
+    preferences.edit().putFloat("ui_scale", scale).apply();
+    applyFontScale(root);
+    setStatus("اندازه نوشته‌ها ذخیره شد");
+  }
+
+  void applyFontScale(View view) {
+    if (view instanceof TextView) {
+      TextView tv = (TextView)view;
+      Object saved = tv.getTag(R.id.font_size_original);
+      if (!(saved instanceof Float)) {
+        float original = tv.getTextSize() / getResources().getDisplayMetrics().scaledDensity;
+        tv.setTag(R.id.font_size_original, Float.valueOf(original));
+        saved = Float.valueOf(original);
+      }
+      tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, ((Float)saved).floatValue() * uiScale);
+    }
+    if (view instanceof android.view.ViewGroup) {
+      android.view.ViewGroup group = (android.view.ViewGroup)view;
+      for (int i=0; i<group.getChildCount(); i++) applyFontScale(group.getChildAt(i));
+    }
+  }
+
+  void applyThemeToViews(View view) {
+    root.setBackgroundColor(pageBackground());
+    getWindow().setStatusBarColor(navy);
+    if (view instanceof TextView) {
+      TextView tv = (TextView)view;
+      tv.setTextColor(foregroundColor());
+      if (tv == status) tv.setTextColor(teal);
+      if (tv == updateInfo) tv.setTextColor(teal);
+      if (view instanceof Button) {
+        ((Button)view).setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+          themeMode == 1 ? Color.rgb(35, 112, 117) : (themeMode == 2 ? Color.rgb(190, 225, 205) : Color.rgb(218, 225, 231))));
+      }
+    }
+    if (view instanceof LinearLayout) {
+      LinearLayout layout = (LinearLayout)view;
+      Object tag = layout.getTag();
+      if ("company-card".equals(tag) || "value-card".equals(tag)) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(cardBackground());
+        bg.setCornerRadius(10);
+        bg.setStroke(1, themeMode == 1 ? Color.rgb(67, 125, 144) : Color.rgb(31, 44, 112));
+        layout.setBackground(bg);
+      } else if ("table-row".equals(tag) || "dynamic-row".equals(tag)) {
+        boolean alternate = (layout.getChildCount() % 2 == 0);
+        layout.setBackgroundColor(rowBackground(alternate));
+      }
+    }
+    if (view instanceof android.view.ViewGroup) {
+      android.view.ViewGroup group = (android.view.ViewGroup)view;
+      for (int i=0; i<group.getChildCount(); i++) applyThemeToViews(group.getChildAt(i));
+    }
+  }
+
+  void refreshUpdateInfo() {
+    if (updateInfo == null) return;
+    updateInfo.setText("نسخه نصب‌شده: 1.1\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+  }
+
+  void checkForUpdates() {
+    if (updateInfo != null) updateInfo.setText("در حال بررسی نسخه رسمی...");
+    new Thread(() -> {
+      HttpURLConnection connection = null;
+      try {
+        URL url = new URL("https://api.github.com/repos/tanzimsarkori/fluffy-octo-garbanzo/releases/latest");
+        connection = (HttpURLConnection)url.openConnection();
+        connection.setConnectTimeout(6000);
+        connection.setReadTimeout(6000);
+        connection.setRequestProperty("Accept", "application/vnd.github+json");
+        int code = connection.getResponseCode();
+        if (code == 200) {
+          ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+          try (InputStream in = connection.getInputStream()) {
+            byte[] data = new byte[2048]; int n;
+            while ((n = in.read(data)) > 0) buffer.write(data, 0, n);
+          }
+          JSONObject release = new JSONObject(new String(buffer.toByteArray(), "UTF-8"));
+          String tag = release.optString("tag_name", "نسخه نامشخص");
+          String urlText = release.optString("html_url", "https://github.com/tanzimsarkori/fluffy-octo-garbanzo/releases");
+          final String message = "آخرین نسخه منتشرشده: " + tag + "\nبرای دریافت و نصب، صفحه رسمی نسخه را باز کنید.";
+          ui.post(() -> { if (updateInfo != null) updateInfo.setText(message); });
+          setStatus("اطلاعات آخرین نسخه دریافت شد: " + tag);
+        } else if (code == 404) {
+          ui.post(() -> { if (updateInfo != null) updateInfo.setText("هنوز نسخه‌ای در بخش Releases منتشر نشده است. از صفحه رسمی پروژه، نسخه APK تأییدشده را دریافت کنید."); });
+        } else {
+          ui.post(() -> { if (updateInfo != null) updateInfo.setText("بررسی آنلاین انجام نشد (HTTP " + code + "). اتصال اینترنت را بررسی یا صفحه رسمی نسخه‌ها را باز کنید."); });
+        }
+      } catch (Exception e) {
+        ui.post(() -> { if (updateInfo != null) updateInfo.setText("اتصال برای بررسی نسخه برقرار نشد. می‌توانید صفحه رسمی نسخه‌ها را دستی باز کنید."); });
+      } finally {
+        if (connection != null) connection.disconnect();
+      }
+    }, "yasir-update-check").start();
+  }
+
+  void openReleasePage() {
+    try {
+      startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/tanzimsarkori/fluffy-octo-garbanzo/releases")));
+    } catch (Exception e) {
+      setStatus("مرورگر برای باز کردن صفحه نسخه‌ها در دسترس نیست");
+    }
   }
 
   void setStatus(String s) { ui.post(() -> status.setText(s)); }
@@ -536,6 +742,7 @@ public class MainActivity extends Activity {
       row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
       row.setGravity(Gravity.CENTER_VERTICAL);
       row.setPadding(12, 10, 12, 10);
+      row.setTag("dynamic-row");
       row.setBackgroundColor((dynamicParameterList.getChildCount() % 2 == 0) ? Color.WHITE : Color.rgb(224,233,244));
       TextView label = text(name == null ? id : name, 14, false);
       label.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
