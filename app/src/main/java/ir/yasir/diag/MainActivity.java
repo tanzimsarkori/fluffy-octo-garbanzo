@@ -584,17 +584,31 @@ public class MainActivity extends Activity {
     new Thread(() -> {
       HttpURLConnection connection = null;
       Bitmap photo = null;
+      File photoFile = new File(getCacheDir(), "yasir_vehicle_" + index + ".jpg");
       try {
-        connection = (HttpURLConnection)new URL(urls[Math.max(0, Math.min(urls.length - 1, index))]).openConnection();
-        connection.setConnectTimeout(10000);
-        connection.setReadTimeout(12000);
-        connection.setInstanceFollowRedirects(true);
-        connection.setRequestProperty("User-Agent", "YasirDiagAndroid/1.5");
-        connection.connect();
-        try (InputStream input = connection.getInputStream()) {
-          BitmapFactory.Options options = new BitmapFactory.Options();
-          options.inPreferredConfig = Bitmap.Config.RGB_565;
-          photo = BitmapFactory.decodeStream(input, null, options);
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        if (photoFile.isFile() && photoFile.length() > 4096) {
+          photo = BitmapFactory.decodeFile(photoFile.getAbsolutePath(), options);
+        }
+        if (photo == null) {
+          connection = (HttpURLConnection)new URL(urls[Math.max(0, Math.min(urls.length - 1, index))]).openConnection();
+          connection.setConnectTimeout(10000);
+          connection.setReadTimeout(12000);
+          connection.setInstanceFollowRedirects(true);
+          connection.setRequestProperty("User-Agent", "YasirDiagAndroid/1.5");
+          connection.connect();
+          File tempFile = new File(getCacheDir(), "yasir_vehicle_" + index + ".tmp");
+          try (InputStream input = connection.getInputStream();
+               FileOutputStream output = new FileOutputStream(tempFile)) {
+            byte[] chunk = new byte[8192];
+            int count;
+            while ((count = input.read(chunk)) != -1) output.write(chunk, 0, count);
+          }
+          if (tempFile.length() > 4096 && tempFile.renameTo(photoFile)) {
+            photo = BitmapFactory.decodeFile(photoFile.getAbsolutePath(), options);
+          }
+          if (tempFile.exists()) tempFile.delete();
         }
       } catch (Exception ignored) {
       } finally {
