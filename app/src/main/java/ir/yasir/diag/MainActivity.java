@@ -7,12 +7,17 @@ import android.os.Handler;
 import android.os.Looper;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.widget.ImageView;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.*;
 import org.json.*;
 import java.io.*;
 import java.net.*;
+import java.util.HashMap;
+import java.util.Iterator;
 
 public class MainActivity extends Activity {
   final Handler ui = new Handler(Looper.getMainLooper());
@@ -21,7 +26,9 @@ public class MainActivity extends Activity {
   OutputStream out;
   TextView status, rpm, coolant, intake, battery, map, injectors, spark, dtc;
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
-  LinearLayout currentScreen;
+  LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList;
+  final HashMap<String, TextView> dynamicParameterValues = new HashMap<>();
+  final HashMap<String, TextView> dynamicParameterNames = new HashMap<>();
   TextView[] injectorValues = new TextView[5];
   TextView[] sparkValues = new TextView[4];
   TextView injectorAverage, dashRpm, dashCoolant, dashBattery, dashIntake, dashInjection, dashUpdated;
@@ -42,6 +49,14 @@ public class MainActivity extends Activity {
     scroll.addView(root);
     setContentView(scroll);
     content = root;
+    ImageView brandLogo = new ImageView(this);
+    brandLogo.setImageResource(R.drawable.yasir_diag_logo);
+    brandLogo.setAdjustViewBounds(true);
+    brandLogo.setMaxHeight(190);
+    brandLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(-1, 190);
+    logoParams.setMargins(0, 0, 0, 6);
+    root.addView(brandLogo, logoParams);
     root.addView(text("یاسر دیاگ",29,true));
     root.addView(text("عیب‌یاب فارسی خودرو • زیمنس SIM2K-34VR",15,false));
     status = text("ابتدا به وای‌فای E-MAX وصل شوید",15,true);
@@ -61,6 +76,7 @@ public class MainActivity extends Activity {
     actuatorSection = section("عملگرها");
     resetSection = section("ریست مقادیر سازگار یافته");
     chartSection = section("نمودارها");
+    dynamicParametersSection = section("پارامترهای زنده و قابل توسعه");
 
     content = home;
     button("اتصال به دستگاه (Wi-Fi)", () -> connect());
@@ -70,6 +86,7 @@ public class MainActivity extends Activity {
     button("پاک کردن عیب", () -> { show(dtcSection); confirmClear(); });
     button("داشبورد زنده موتور", () -> show(dashboardSection));
     button("پارامترها", () -> show(parametersMenu));
+    button("همه پارامترهای زنده (پویا)", () -> show(dynamicParametersSection));
     button("عملگرها", () -> show(actuatorSection));
     button("ریست کردن مقادیر سازگار یافته", () -> show(resetSection));
     button("نمودار", () -> show(chartSection));
@@ -155,6 +172,13 @@ public class MainActivity extends Activity {
     content = chartSection;
     content.addView(text("نمودارهای زنده در نسخه بعدی اضافه می‌شوند؛ مقادیر عددی فعلاً در بخش پارامترها در دسترس‌اند.",16,false));
     back(home);
+    content = dynamicParametersSection;
+    content.addView(text("این فهرست از پیام‌های JSON دستگاه ساخته می‌شود. با افزودن پارامتر جدید به فریم‌ور و ارسال آن در parameters یا telemetry، نیازی به تغییر برنامه نیست.",14,false));
+    dynamicParameterList = new LinearLayout(this);
+    dynamicParameterList.setOrientation(LinearLayout.VERTICAL);
+    dynamicParametersSection.addView(dynamicParameterList);
+    back(home);
+
     content = root;
     show(home);
   }
@@ -381,11 +405,106 @@ public class MainActivity extends Activity {
     }).start();
   }
 
+  String friendlyParameterName(String key) {
+    if ("rpm".equals(key)) return "دور موتور";
+    if ("coolant".equals(key)) return "دمای آب";
+    if ("intake".equals(key)) return "دمای هوای ورودی";
+    if ("battery".equals(key)) return "ولتاژ باتری";
+    if ("map".equals(key)) return "فشار MAP (نیازمند تأیید)";
+    if ("mapRaw".equals(key)) return "بایت خام MAP نامزد";
+    if ("tps".equals(key)) return "موقعیت دریچه گاز (در انتظار فرمول)";
+    if ("tpsRaw".equals(key)) return "بایت خام TPS (در انتظار شناسایی)";
+    if ("connected".equals(key)) return "وضعیت اتصال ECU";
+    return key;
+  }
+
+  void upsertDynamicParameter(String id, String name, String value, String unit, String statusText) {
+    if (id == null || id.trim().isEmpty()) id = name;
+    if (id == null || id.trim().isEmpty()) return;
+    TextView val = dynamicParameterValues.get(id);
+    if (val == null) {
+      LinearLayout row = new LinearLayout(this);
+      row.setOrientation(LinearLayout.HORIZONTAL);
+      row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+      row.setGravity(Gravity.CENTER_VERTICAL);
+      row.setPadding(12, 10, 12, 10);
+      row.setBackgroundColor((dynamicParameterList.getChildCount() % 2 == 0) ? Color.WHITE : Color.rgb(224,233,244));
+      TextView label = text(name == null ? id : name, 14, false);
+      label.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+      row.addView(label, new LinearLayout.LayoutParams(0, -2, 2));
+      val = text("—", 16, true);
+      val.setTextColor(teal);
+      val.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+      row.addView(val, new LinearLayout.LayoutParams(0, -2, 3));
+      dynamicParameterList.addView(row, new LinearLayout.LayoutParams(-1, -2));
+      dynamicParameterValues.put(id, val);
+      dynamicParameterNames.put(id, label);
+    } else {
+      TextView label = dynamicParameterNames.get(id);
+      if (label != null && name != null && !name.trim().isEmpty()) label.setText(name);
+    }
+    String shown = value == null || value.equals("null") ? "—" : value;
+    if (unit != null && !unit.trim().isEmpty()) shown += " " + unit;
+    if (statusText != null && !statusText.trim().isEmpty()) shown += "  •  " + statusText;
+    val.setText(shown);
+  }
+
+  void updateDynamicParameters(JSONObject j) {
+    JSONArray params = j.optJSONArray("parameters");
+    if (params != null) {
+      for (int i = 0; i < params.length(); i++) {
+        JSONObject p = params.optJSONObject(i);
+        if (p == null) continue;
+        String id = p.optString("id", p.optString("key", "param_" + i));
+        String name = p.optString("name", id);
+        Object rawValue = p.opt("value");
+        String value = rawValue == null || rawValue == JSONObject.NULL ? "—" : String.valueOf(rawValue);
+        upsertDynamicParameter(id, name, value, p.optString("unit", ""), p.optString("status", ""));
+      }
+      return;
+    }
+
+    // Backwards-compatible generic renderer: any future scalar JSON field is displayed automatically.
+    Iterator<String> keys = j.keys();
+    while (keys.hasNext()) {
+      String key = keys.next();
+      if ("type".equals(key) || "raw".equals(key) || "parameters".equals(key) ||
+          "injectors".equals(key) || "spark".equals(key)) continue;
+      Object value = j.opt(key);
+      if (value == null || value == JSONObject.NULL || value instanceof JSONObject || value instanceof JSONArray) continue;
+      String unit = "";
+      if ("rpm".equals(key)) unit = "دور/دقیقه";
+      else if ("coolant".equals(key) || "intake".equals(key)) unit = "°C";
+      else if ("battery".equals(key)) unit = "V";
+      else if ("map".equals(key)) unit = "kPa (تأییدنشده)";
+      upsertDynamicParameter("json_" + key, friendlyParameterName(key), String.valueOf(value), unit, "");
+    }
+
+    JSONArray raw = j.optJSONArray("raw");
+    if (raw != null) {
+      for (int i = 0; i < raw.length(); i++) {
+        int b = raw.optInt(i, -1);
+        if (b < 0) continue;
+        String hex = String.format(java.util.Locale.US, "%02X", b & 0xFF);
+        upsertDynamicParameter("raw_" + i, String.format(java.util.Locale.US, "داده خام d[%02d]", i),
+            b + " (0x" + hex + ")", "", "خام؛ فرمول شناسایی نشده");
+      }
+    }
+
+    JSONArray inj = j.optJSONArray("injectors");
+    if (inj != null) for (int i=0; i<inj.length(); i++)
+      upsertDynamicParameter("inj_" + i, "زمان پاشش انژکتور " + (i+1), inj.optString(i), "ms", "نامزد");
+    JSONArray ign = j.optJSONArray("spark");
+    if (ign != null) for (int i=0; i<ign.length(); i++)
+      upsertDynamicParameter("spark_" + i, "آوانس جرقه سیلندر " + (i+1), ign.optString(i), "°", "نامزد");
+  }
+
   void parse(String line) {
     try {
       JSONObject j = new JSONObject(line);
       String type = j.optString("type");
       if(type.equals("telemetry")) {
+        updateDynamicParameters(j);
         rpm.setText(j.optString("rpm","—") + " دور/دقیقه");
         coolant.setText(j.optString("coolant","—") + " °C");
         intake.setText(j.optString("intake","—") + " °C");
