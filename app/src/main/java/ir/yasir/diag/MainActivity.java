@@ -1554,7 +1554,7 @@ public class MainActivity extends Activity {
       try {
         synchronized (this) {
           if (socket == null || socket.isClosed() || out == null) return;
-          out.write(("@" + cycle + "," + count + "\\n").getBytes("US-ASCII"));
+          out.write(("@" + cycle + "," + count + "\n").getBytes("US-ASCII"));
           out.flush();
         }
       } catch (Exception e) {
