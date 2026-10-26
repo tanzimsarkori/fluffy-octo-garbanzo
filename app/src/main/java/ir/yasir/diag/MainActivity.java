@@ -8,6 +8,9 @@ import android.os.Looper;
 import android.content.SharedPreferences;
 import android.content.Intent;
 import android.net.Uri;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.util.TypedValue;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -29,6 +32,8 @@ import java.util.Iterator;
 public class MainActivity extends Activity {
   final Handler ui = new Handler(Looper.getMainLooper());
   volatile boolean running = false;
+  volatile int connectionEpoch = 0;
+  int malformedFrames = 0, telemetryFrames = 0, prideFrames = 0;
   Socket socket;
   OutputStream out;
   TextView status, rpm, coolant, intake, battery, map, injectors, spark, dtc;
@@ -373,6 +378,7 @@ public class MainActivity extends Activity {
     content.addView(text("ابتدا گوشی را به Wi-Fi دستگاه E-MAX وصل کن، سپس «اتصال به دستگاه» و «اتصال به ECU» را بزن. مقادیر پایین به‌صورت زنده جایگزین خط تیره می‌شوند.", 13, false));
     prideSiemensUpdated = text("هنوز داده‌ای از زیمنس پراید دریافت نشده است", 13, true);
     content.addView(prideSiemensUpdated);
+    content.addView(text("برای نمایش داده‌ها گوشی باید به Wi-Fi E-MAX وصل باشد. نسخه STM32 V46 پیشنهاد می‌شود.", 13, false));
     content.addView(text("سنسورها و عملکرد موتور", 19, true));
     prideSiemensValues.put("emax_pride_battery", tableRow("ولتاژ باتری"));
     prideSiemensValues.put("emax_pride_coolant", tableRow("دمای آب موتور"));
@@ -1065,57 +1071,94 @@ public class MainActivity extends Activity {
     }, "yasir-command").start();
   }
 
+
+  // Wi-Fi without Internet must still be used for 192.168.4.1,
+  // even when Android prefers cellular for regular Internet requests.
+  Socket createEspSocketOnWifi() throws IOException {
+    ConnectivityManager cm = (ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
+    if (cm == null) throw new IOException("سرویس شبکه اندروید در دسترس نیست");
+    for (Network n : cm.getAllNetworks()) {
+      NetworkCapabilities caps = cm.getNetworkCapabilities(n);
+      if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+        return n.getSocketFactory().createSocket();
+      }
+    }
+    throw new IOException("گوشی به Wi-Fi E-MAX وصل نیست");
+  }
+
   void connect() {
     disconnect();
+    final int epoch = ++connectionEpoch;
     running = true;
-    setStatus("در حال اتصال به E-MAX ...");
+    setStatus("در حال اتصال از مسیر Wi-Fi به E-MAX ...");
     new Thread(() -> {
-      while (running) {
+      int attempts = 0;
+      while (running && connectionEpoch == epoch) {
         Socket s = null;
         try {
-          s = new Socket();
+          attempts++;
+          s = createEspSocketOnWifi();
           s.setKeepAlive(true);
           s.setTcpNoDelay(true);
           s.connect(new InetSocketAddress(host, port), 4500);
-          if (!running) { try { s.close(); } catch(Exception ignored) {} break; }
-
-          socket = s;
+          if (!running || connectionEpoch != epoch) {
+            try { s.close(); } catch (Exception ignored) {}
+            break;
+          }
           synchronized (this) {
+            if (!running || connectionEpoch != epoch) {
+              try { s.close(); } catch (Exception ignored) {}
+              break;
+            }
+            socket = s;
             out = s.getOutputStream();
           }
-          setStatus("به ESP-01 متصل شد — اتصال به ECU را بزنید");
+          setStatus("TCP به E-MAX برقرار شد؛ اتصال ECU را بزنید");
 
-          BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream(), "UTF-8"));
+          BufferedReader reader =
+              new BufferedReader(new InputStreamReader(s.getInputStream(), "UTF-8"));
           String line;
-          while (running && (line = br.readLine()) != null) {
+          while (running && connectionEpoch == epoch &&
+                 (line = reader.readLine()) != null) {
             final String received = line;
-            ui.post(() -> parse(received));
+            if (received.length() > 12000) {
+              setStatus("پیام بیش از حد طولانی از ESP دریافت شد");
+              continue;
+            }
+            final int packetEpoch = epoch;
+            ui.post(() -> {
+              if (running && connectionEpoch == packetEpoch) parse(received);
+            });
           }
-          if (running) setStatus("ارتباط TCP قطع شد؛ تلاش برای اتصال مجدد...");
+          if (running && connectionEpoch == epoch)
+            setStatus("TCP از سوی ESP بسته شد؛ در حال اتصال مجدد...");
         } catch (Exception e) {
-          if (running) {
+          if (running && connectionEpoch == epoch) {
             String detail = e.getMessage();
-            if (detail == null || detail.trim().isEmpty()) detail = e.getClass().getSimpleName();
-            setStatus("ارتباط قطع شد؛ اتصال مجدد... (" + detail + ")");
+            if (detail == null || detail.trim().isEmpty())
+              detail = e.getClass().getSimpleName();
+            setStatus("اتصال TCP قطع یا ناموفق؛ تلاش مجدد (" + detail + ")");
           }
         } finally {
           synchronized (this) {
             if (socket == s) {
-              try { if (socket != null) socket.close(); } catch(Exception ignored) {}
+              try { if (socket != null) socket.close(); } catch (Exception ignored) {}
               socket = null;
               out = null;
             } else {
-              try { if (s != null) s.close(); } catch(Exception ignored) {}
+              try { if (s != null) s.close(); } catch (Exception ignored) {}
             }
           }
         }
-
-        if (running) {
-          try { Thread.sleep(1200); }
-          catch (InterruptedException ignored) { Thread.currentThread().interrupt(); break; }
+        if (running && connectionEpoch == epoch) {
+          try { Thread.sleep(1600); }
+          catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+            break;
+          }
         }
       }
-    }).start();
+    }, "yasir-wifi-tcp-" + epoch).start();
   }
 
   String friendlyParameterName(String key) {
@@ -1163,6 +1206,48 @@ public class MainActivity extends Activity {
     val.setText(shown);
   }
 
+
+  String prideFriendlyName(String id) {
+    switch (id) {
+      case "emax_pride_battery": return "ولتاژ باتری";
+      case "emax_pride_coolant": return "دمای آب موتور";
+      case "emax_pride_air_temp": return "دمای هوای ورودی";
+      case "emax_pride_tps_voltage": return "ولتاژ سنسور دریچه گاز";
+      case "emax_pride_tps_angle": return "زاویه دریچه گاز";
+      case "emax_pride_map": return "فشار منیفولد MAP";
+      case "emax_pride_rpm": return "دور موتور";
+      case "emax_pride_engine_load": return "بار موتور";
+      case "emax_pride_vehicle_speed": return "سرعت خودرو";
+      case "emax_pride_o2_voltage_1": return "ولتاژ سنسور اکسیژن ۱";
+      case "emax_pride_o2_voltage_2": return "ولتاژ سنسور اکسیژن ۲";
+      case "emax_pride_o2_correction": return "تصحیح سنسور اکسیژن";
+      case "emax_pride_injection_time": return "زمان پاشش موتور";
+      case "emax_pride_injector_1": return "زمان پاشش انژکتور ۱";
+      case "emax_pride_injector_2": return "زمان پاشش انژکتور ۲";
+      case "emax_pride_injector_3": return "زمان پاشش انژکتور ۳";
+      case "emax_pride_injector_4": return "زمان پاشش انژکتور ۴";
+      case "emax_pride_injector_average": return "میانگین زمان پاشش";
+      case "emax_pride_stepper_actual": return "موقعیت واقعی استپر";
+      case "emax_pride_stepper_target": return "موقعیت هدف استپر";
+      case "emax_pride_canister_ocr": return "فرمان شیر کنیستر";
+      case "emax_pride_canister_load": return "بار کنیستر";
+      case "emax_pride_spark_1": return "آوانس جرقه سیلندر ۱";
+      case "emax_pride_spark_2": return "آوانس جرقه سیلندر ۲";
+      case "emax_pride_spark_3": return "آوانس جرقه سیلندر ۳";
+      case "emax_pride_spark_4": return "آوانس جرقه سیلندر ۴";
+      case "emax_pride_mixture_status": return "وضعیت حلقه تنظیم سوخت";
+      case "emax_pride_mileage": return "مسافت پیموده‌شده";
+      case "emax_pride_gear": return "وضعیت دنده";
+      case "emax_pride_speed_disconnects": return "تعداد قطعی سنسور سرعت";
+      case "emax_pride_speed_error_runtime": return "زمان خطای سنسور سرعت";
+      case "emax_pride_ac_switch": return "کلید کولر";
+      case "emax_pride_ac_control": return "کنترل کولر";
+      case "emax_pride_ac_relay": return "رله کولر";
+      case "emax_pride_fan_status": return "وضعیت فن خنک‌کننده";
+      default: return id;
+    }
+  }
+
   void updateDynamicParameters(JSONObject j) {
     JSONArray params = j.optJSONArray("parameters");
     if (params != null) {
@@ -1170,7 +1255,7 @@ public class MainActivity extends Activity {
         JSONObject p = params.optJSONObject(i);
         if (p == null) continue;
         String id = p.optString("id", p.optString("key", "param_" + i));
-        String name = p.optString("name", id);
+        String name = p.optString("name", prideFriendlyName(id));
         Object rawValue = p.opt("value");
         String value = rawValue == null || rawValue == JSONObject.NULL ? "—" : String.valueOf(rawValue);
         String unit = p.optString("unit", "");
@@ -1228,7 +1313,12 @@ public class MainActivity extends Activity {
     try {
       JSONObject j = new JSONObject(line);
       String type = j.optString("type");
-      if(type.equals("telemetry")) {
+      if(type.equals("parameters")) {
+        prideFrames++;
+        updateDynamicParameters(j);
+        setStatus("بسته پارامترهای زیمنس پراید دریافت شد: " + prideFrames);
+      } else if(type.equals("telemetry")) {
+        telemetryFrames++;
         updateDynamicParameters(j);
         rpm.setText(j.optString("rpm","—") + " دور/دقیقه");
         coolant.setText(j.optString("coolant","—") + " °C");
@@ -1301,7 +1391,11 @@ public class MainActivity extends Activity {
           setStatus("وضعیت: " + message);
         }
       }
-    } catch(JSONException ignored) {}
+    } catch (JSONException ex) {
+      malformedFrames++;
+      setStatus("JSON ناقص یا خراب: " + malformedFrames + "، طول پیام " + line.length());
+      android.util.Log.w("YasirDiag", "Malformed JSON, length=" + line.length(), ex);
+    }
   }
 
   String array(JSONArray a) {
@@ -1321,6 +1415,7 @@ public class MainActivity extends Activity {
   }
 
   void disconnect() {
+    connectionEpoch++;
     running = false;
     closeSocket();
     setStatus("اتصال قطع شد");
