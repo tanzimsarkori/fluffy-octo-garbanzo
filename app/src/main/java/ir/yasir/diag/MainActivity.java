@@ -156,6 +156,7 @@ public class MainActivity extends Activity {
   @Override public void onCreate(Bundle b) {
     super.onCreate(b);
     preferences = getSharedPreferences("yasir_diag_settings", MODE_PRIVATE);
+    final String reopenScreenKey = preferences.getString("yasir.lastScreen", "home");
     installCrashDiagnostics();
     uiScale = preferences.getFloat("ui_scale", 1.0f);
     themeMode = preferences.getInt("theme_mode", 3);
@@ -577,7 +578,7 @@ public class MainActivity extends Activity {
     show(home);
     final String restoreKey = b != null ?
         b.getString("yasir.screen", "home") :
-        preferences.getString("yasir.lastScreen", "home");
+        reopenScreenKey;
     selectedBrand = b != null ? b.getString("yasir.brand", "") :
         preferences.getString("yasir.lastBrand", "");
     selectedEcu = b != null ? b.getString("yasir.ecu", "") :
