@@ -36,7 +36,9 @@ public class MainActivity extends Activity {
   int malformedFrames = 0, telemetryFrames = 0, prideFrames = 0;
   Socket socket;
   OutputStream out;
-  TextView status, rpm, coolant, intake, battery, map, injectors, spark, dtc;
+  TextView status, lastDiagnosticStatus, rpm, coolant, intake, battery, map, injectors, spark, dtc;
+  // Keep the top connection badge at a fixed size and show only real TCP state.
+  final Runnable showRealTcpLoss = () -> displayTcpBadge(false);
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
   LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, ecuSelectionSection, diagnosticMenu, settingsSection, updateSection, helpSection;
   ScrollView scrollContainer;
@@ -227,6 +229,7 @@ public class MainActivity extends Activity {
     connectionPanel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
     connectionPanel.setPadding(dp(5), dp(5), dp(5), dp(5));
     connectionPanel.setTag("connection-panel");
+    connectionPanel.setMinimumHeight(dp(68));
     connectionPanel.setBackground(panelDrawable(Color.rgb(4, 20, 18), Color.rgb(28, 75, 65), 14));
     TextView connectAction = text("▣ اتصال به دستگاه", 12, true);
     connectAction.setTextColor(Color.rgb(218, 255, 216));
@@ -239,10 +242,13 @@ public class MainActivity extends Activity {
     endpoint.setTextColor(Color.rgb(194, 220, 209));
     endpoint.setGravity(Gravity.CENTER);
     connectionPanel.addView(endpoint, new LinearLayout.LayoutParams(0, -2, 1.0f));
-    status = text("● TCP\nمتصل نیست", 10, true);
-    status.setTextColor(Color.rgb(83, 224, 183));
+    status = text("● TCP\nقطع", 10, true);
+    status.setTextColor(Color.rgb(238, 181, 117));
     status.setGravity(Gravity.CENTER);
-    connectionPanel.addView(status, new LinearLayout.LayoutParams(0, -2, 1.0f));
+    status.setLines(2);
+    status.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    status.setIncludeFontPadding(false);
+    connectionPanel.addView(status, new LinearLayout.LayoutParams(0, dp(52), 1.0f));
     root.addView(connectionPanel);
 
     home = section("");
@@ -371,10 +377,15 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.0 • تثبیت برنامه و حفظ صفحه",16,true));
+    content.addView(text("نسخه برنامه: 2.1 • نوار اتصال ثابت بدون پرش",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل عملیاتی فعلی: زیمنس SIM2K‑34VR.",14,false));
     content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
+    content.addView(text("آخرین پیام ارتباط و عیب‌یابی (جزئیات خارج از نوار ثابت بالا)", 14, true));
+    lastDiagnosticStatus = text("هنوز پیامی ثبت نشده", 13, false);
+    lastDiagnosticStatus.setMaxLines(3);
+    lastDiagnosticStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    content.addView(lastDiagnosticStatus);
     String previousCrash = preferences.getString("yasir.lastCrash", "");
     if (!previousCrash.isEmpty()) {
       content.addView(text("گزارش آخرین خطای واقعی اندروید:", 15, true));
@@ -1290,7 +1301,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.0\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.1\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -1337,17 +1348,38 @@ public class MainActivity extends Activity {
     }
   }
 
-  void setStatus(String message) {
-    if (exiting || status == null || message == null) return;
+  // Fixed-width, fixed-height badge, independent of incoming status text.
+  // Transient TCP reconnects get 2 seconds before displaying a real disconnection.
+  void displayTcpBadge(boolean connected) {
+    if (exiting || status == null) return;
+    String badge = connected ? "● TCP\nمتصل" : "● TCP\nقطع";
+    if (!badge.contentEquals(status.getText())) status.setText(badge);
+    status.setTextColor(connected ? Color.rgb(83, 224, 183) :
+        Color.rgb(238, 181, 117));
+  }
+
+  void updateTcpBadge(boolean connected, boolean delayDisconnect) {
     ui.post(() -> {
       if (exiting || status == null) return;
-      long now = android.os.SystemClock.elapsedRealtime();
-      // Frequent repeated telemetry status lines force the whole top bar to
-      // re-layout. Leave parameter values updating independently.
-      if (message.equals(lastUiStatus) && now - lastUiStatusAt < 4500) return;
-      lastUiStatus = message;
-      lastUiStatusAt = now;
-      if (!message.contentEquals(status.getText())) status.setText(message);
+      ui.removeCallbacks(showRealTcpLoss);
+      if (connected) displayTcpBadge(true);
+      else if (delayDisconnect) ui.postDelayed(showRealTcpLoss, 2000);
+      else displayTcpBadge(false);
+    });
+  }
+
+  // Status messages are still preserved for diagnosis, but they must never
+  // resize the TCP banner, which caused the entire home screen to jump.
+  void setStatus(String message) {
+    if (exiting || message == null) return;
+    if (message.equals(lastUiStatus)) return;
+    lastUiStatus = message;
+    android.util.Log.d("YasirDiag", message);
+    ui.post(() -> {
+      if (exiting) return;
+      if (lastDiagnosticStatus != null &&
+          !message.contentEquals(lastDiagnosticStatus.getText()))
+        lastDiagnosticStatus.setText(message);
     });
   }
 
@@ -1416,6 +1448,7 @@ public class MainActivity extends Activity {
             out = s.getOutputStream();
             tcpLive = true;
           }
+          updateTcpBadge(true, false);
           setStatus("TCP به E-MAX برقرار شد؛ اتصال ECU را بزنید");
 
           BufferedReader reader =
@@ -1449,6 +1482,8 @@ public class MainActivity extends Activity {
               socket = null;
               out = null;
               tcpLive = false;
+              if (running && connectionEpoch == epoch)
+                updateTcpBadge(false, true);
             } else {
               try { if (s != null) s.close(); } catch (Exception ignored) {}
             }
@@ -1865,6 +1900,7 @@ public class MainActivity extends Activity {
   }
 
   void disconnect() {
+    updateTcpBadge(false, false);
     tcpLive = false;
     connectionEpoch++;
     running = false;
@@ -1873,6 +1909,7 @@ public class MainActivity extends Activity {
   }
 
   @Override protected void onDestroy() {
+    ui.removeCallbacks(showRealTcpLoss);
     exiting = true;
     prideAckWorker.shutdownNow();
     disconnect();
