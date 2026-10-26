@@ -48,6 +48,10 @@ public class MainActivity extends Activity {
   final LinearLayout[] prideGroupSections = new LinearLayout[4];
   final String[] prideCurrentValues = new String[35];
   final String[] pridePendingValues = new String[35];
+  final long[] prideLastSeenAt = new long[35];
+  long prideLastCompleteAt = 0;
+  final java.util.concurrent.ExecutorService prideAckWorker =
+      java.util.concurrent.Executors.newSingleThreadExecutor();
   final boolean[] pridePendingPresent = new boolean[35];
   int pridePendingCycle = -1;
   int prideCompleteCycles = 0;
@@ -359,7 +363,7 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 1.8 • پروفایل زیمنس پراید + جدول تعمیرگاهی",16,true));
+    content.addView(text("نسخه برنامه: 1.9 • زیمنس پراید با دریافت هوشمند و مقادیر قدیمی مشخص",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل عملیاتی فعلی: زیمنس SIM2K‑34VR.",14,false));
     content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
@@ -457,10 +461,10 @@ public class MainActivity extends Activity {
 
     content = prideSiemensSection;
     content.addView(text("پروفایل زیمنس پراید • نمایش تعمیرگاهی ۳۵ پارامتر", 18, true));
-    content.addView(text("اتصال: Wi-Fi E-MAX ← دستگاه ← ECU. فریم‌ور V47 بسته‌های کوتاه شماره‌دار ارسال می‌کند.", 13, false));
+    content.addView(text("نسخه سازگار: STM32 V49؛ سرعت به‌صورت خودکار و فقط پس از دریافت کامل ۳۵ پارامتر افزایش می‌یابد.", 13, false));
     prideSiemensUpdated = text("در انتظار اولین دوره داده • ۰/۳۵", 14, true);
     content.addView(prideSiemensUpdated);
-    content.addView(text("علامت ⚠ یعنی مقدار غیرعادی یا فرمول نیازمند بررسی است؛ مقدار با قطعیت تأیید نشده.", 12, false));
+    content.addView(text("⚠ یعنی مقدار مشکوک؛ «قدیمی» یعنی داده این دوره نرسیده و آخرین مقدار قبلی موقتاً نگهداری شده است.", 12, false));
 
     android.widget.HorizontalScrollView prideTabsScroll = new android.widget.HorizontalScrollView(this);
     prideTabsScroll.setHorizontalScrollBarEnabled(false);
@@ -541,6 +545,8 @@ public class MainActivity extends Activity {
     prideSiemensValues.put("emax_pride_fan_status", prideCompactRow("وضعیت فن خنک‌کننده"));
     content = prideSiemensSection;
     button("کپی گزارش ۳۵ پارامتر", () -> copyPrideReport());
+    button("حالت پایدار (اولویت با تکمیل ۳۵/۳۵)", () -> send("!I"));
+    button("سرعت هوشمند (افزایش تدریجی پس از دریافت کامل)", () -> send("!F"));
     button("اتصال به ECU", () -> send("!1"));
     button("رفتن به عیب‌یابی", () -> show(diagnosticMenu));
     back(parametersMenu);
@@ -1171,7 +1177,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 1.8\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 1.9\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -1539,32 +1545,85 @@ public class MainActivity extends Activity {
     return false;
   }
 
-  void renderPrideCycle(boolean completed) {
+
+  void sendPrideDeliveryReport(final int cycle, final int count) {
+    if (cycle < 0) return;
+    // Acknowledgment is written to the same Wi-Fi TCP link as ECU commands,
+    // but does not trigger a K-line command or delay the UI thread.
+    prideAckWorker.execute(() -> {
+      try {
+        synchronized (this) {
+          if (socket == null || socket.isClosed() || out == null) return;
+          out.write(("@" + cycle + "," + count + "\\n").getBytes("US-ASCII"));
+          out.flush();
+        }
+      } catch (Exception e) {
+        android.util.Log.w("YasirDiag", "Could not report Pride delivery", e);
+      }
+    });
+  }
+
+  void renderPrideCycle(boolean finishedWithLastPacket) {
     int received = 0;
     int warnings = 0;
+    int keptOld = 0;
+    long now = android.os.SystemClock.elapsedRealtime();
     for (int idx = 0; idx < PRIDE_IDS.length; idx++) {
       TextView target = prideSiemensValues.get(PRIDE_IDS[idx]);
-      if (pridePendingPresent[idx]) received++;
-      String shown = pridePendingPresent[idx] ? pridePendingValues[idx] : "—";
-      prideCurrentValues[idx] = shown;
+      String shown;
+      boolean stale = false;
+      if (pridePendingPresent[idx]) {
+        received++;
+        shown = pridePendingValues[idx];
+        prideCurrentValues[idx] = shown;
+        prideLastSeenAt[idx] = now;
+      } else if (prideCurrentValues[idx] != null &&
+                 !prideCurrentValues[idx].equals("—")) {
+        keptOld++;
+        stale = true;
+        shown = prideCurrentValues[idx] + "  • قدیمی";
+      } else {
+        shown = "—";
+        stale = true;
+      }
       if (shown.contains("⚠")) warnings++;
       if (target != null) {
         target.setText(shown);
-        target.setTextColor(shown.contains("⚠") ? Color.rgb(255, 180, 69) : teal);
+        target.setTextColor(stale ? Color.rgb(156, 171, 182) :
+              shown.contains("⚠") ? Color.rgb(255, 180, 69) : teal);
       }
     }
     prideInvalidValues = warnings;
-    if (received == 35 && completed) prideCompleteCycles++;
+    boolean complete = received == 35 && finishedWithLastPacket;
+    if (complete) prideCompleteCycles++;
     else prideIncompleteCycles++;
+
+    String rate = "";
+    if (complete) {
+      if (prideLastCompleteAt != 0 && now > prideLastCompleteAt) {
+        float hz = 1000.0f / (now - prideLastCompleteAt);
+        rate = String.format(java.util.Locale.US, " • %.2f Hz", hz);
+      }
+      prideLastCompleteAt = now;
+    }
     if (prideSiemensUpdated != null) {
       String time = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
                         .format(new java.util.Date());
-      prideSiemensUpdated.setText("دریافت: " + received + "/۳۵ • " +
-          (received == 35 ? "کامل" : "ناقص؛ احتمال مشکل مسیر UART/ESP") +
-          " • مشکوک: " + warnings + " • " + time);
+      prideSiemensUpdated.setText("دریافت تازه: " + received + "/۳۵ • " +
+          (complete ? "کامل" : "ناقص") +
+          " • نگهداری قبلی: " + keptOld +
+          " • هشدار: " + warnings + rate + " • " + time);
     }
-    setStatus("زیمنس پراید: " + received + "/35 پارامتر؛ " +
-      (received == 35 ? "دوره کامل" : "دوره ناقص"));
+
+    // The STM32 V49 adjusts its cadence ONLY from confirmed receiver counts.
+    // Never claim a full cycle based on the last packet alone.
+    sendPrideDeliveryReport(pridePendingCycle, received);
+    if (!complete) {
+      setStatus("زیمنس پراید: " + received + "/۳۵ تازه؛ " +
+                keptOld + " مقدار قبلی با برچسب قدیمی نگه داشته شد");
+    } else {
+      setStatus("زیمنس پراید: ۳۵/۳۵ کامل • دریافت پایدار");
+    }
   }
 
   void parse(String line) {
@@ -1684,6 +1743,7 @@ public class MainActivity extends Activity {
   }
 
   @Override protected void onDestroy() {
+    prideAckWorker.shutdownNow();
     disconnect();
     super.onDestroy();
   }
