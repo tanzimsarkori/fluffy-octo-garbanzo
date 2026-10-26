@@ -40,6 +40,12 @@ public class MainActivity extends Activity {
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
   LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, ecuSelectionSection, diagnosticMenu, settingsSection, updateSection, helpSection;
   ScrollView scrollContainer;
+  final HashMap<String, Integer> screenScrollPositions = new HashMap<>();
+  String activeScreenKey = "home";
+  String lastUiStatus = "";
+  long lastUiStatusAt = 0;
+  boolean tcpLive = false;
+  boolean exiting = false;
   final HashMap<Integer, Bitmap> vehiclePhotoCache = new HashMap<>();
   final HashMap<Integer, Boolean> vehiclePhotoLoading = new HashMap<>();
   TextView selectedBrandLabel, diagnosticSelectionLabel, prideSiemensUpdated;
@@ -150,6 +156,7 @@ public class MainActivity extends Activity {
   @Override public void onCreate(Bundle b) {
     super.onCreate(b);
     preferences = getSharedPreferences("yasir_diag_settings", MODE_PRIVATE);
+    installCrashDiagnostics();
     uiScale = preferences.getFloat("ui_scale", 1.0f);
     themeMode = preferences.getInt("theme_mode", 3);
     configurePalette();
@@ -363,10 +370,21 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 1.9 • زیمنس پراید با دریافت هوشمند و مقادیر قدیمی مشخص",16,true));
+    content.addView(text("نسخه برنامه: 2.0 • تثبیت برنامه و حفظ صفحه",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل عملیاتی فعلی: زیمنس SIM2K‑34VR.",14,false));
     content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
+    String previousCrash = preferences.getString("yasir.lastCrash", "");
+    if (!previousCrash.isEmpty()) {
+      content.addView(text("گزارش آخرین خطای واقعی اندروید:", 15, true));
+      content.addView(text(previousCrash, 11, false));
+      button("کپی خطای برنامه", () -> {
+        android.content.ClipboardManager cm =
+          (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+        if (cm != null) cm.setPrimaryClip(
+          android.content.ClipData.newPlainText("YasirCrash", previousCrash));
+      });
+    }
     button("تنظیمات برنامه", () -> show(settingsSection));
     button("صفحه به‌روزرسانی", () -> { refreshUpdateInfo(); show(updateSection); });
     back(home);
@@ -557,6 +575,20 @@ public class MainActivity extends Activity {
     applyThemeToViews(root);
     applyFontScale(root);
     show(home);
+    final String restoreKey = b != null ?
+        b.getString("yasir.screen", "home") :
+        preferences.getString("yasir.lastScreen", "home");
+    selectedBrand = b != null ? b.getString("yasir.brand", "") :
+        preferences.getString("yasir.lastBrand", "");
+    selectedEcu = b != null ? b.getString("yasir.ecu", "") :
+        preferences.getString("yasir.lastEcu", "");
+    final LinearLayout restoreScreen = screenFromKey(restoreKey);
+    if (restoreScreen != null && restoreScreen != home) show(restoreScreen);
+    final int savedY = b == null ? 0 : b.getInt("yasir.scroll", 0);
+    if (savedY > 0 && scrollContainer != null)
+      scrollContainer.post(() -> scrollContainer.scrollTo(0, savedY));
+    if (b != null && b.getBoolean("yasir.tcpConnected", false))
+      scrollContainer.post(() -> connect());
   }
 
 
@@ -604,6 +636,25 @@ public class MainActivity extends Activity {
       clipboard.setPrimaryClip(android.content.ClipData.newPlainText("YASIR_Pride_Report", report.toString()));
       setStatus("گزارش ۳۵ پارامتر در حافظه کپی شد");
     }
+  }
+
+
+  // Save a short crash report only when Android terminates this process
+  // because of an uncaught Java exception. Keep the system crash handler.
+  void installCrashDiagnostics() {
+    final Thread.UncaughtExceptionHandler previous =
+        Thread.getDefaultUncaughtExceptionHandler();
+    Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+      try {
+        String stack = android.util.Log.getStackTraceString(error);
+        if (stack.length() > 1600) stack = stack.substring(0, 1600);
+        preferences.edit()
+          .putString("yasir.lastCrash", stack)
+          .putLong("yasir.lastCrashTime", System.currentTimeMillis())
+          .commit();
+      } catch (Exception ignored) {}
+      if (previous != null) previous.uncaughtException(thread, error);
+    });
   }
 
   int dp(float value) { return (int)(value * getResources().getDisplayMetrics().density + 0.5f); }
@@ -927,13 +978,74 @@ public class MainActivity extends Activity {
     return section;
   }
 
+  String screenKey(LinearLayout screen) {
+    if (screen == prideSiemensSection) return "pride";
+    if (screen == dashboardSection) return "dashboard";
+    if (screen == diagnosticMenu) return "diagnostic";
+    if (screen == parametersMenu) return "parameters";
+    if (screen == dynamicParametersSection) return "dynamic";
+    if (screen == dtcSection) return "dtc";
+    if (screen == ecuSelectionSection) return "ecuSelection";
+    if (screen == speedSection) return "speed";
+    if (screen == emissionsSection) return "emissions";
+    if (screen == airSection) return "air";
+    if (screen == fuelSection) return "fuel";
+    if (screen == ignitionSection) return "ignition";
+    if (screen == actuatorSection) return "actuators";
+    if (screen == settingsSection) return "settings";
+    if (screen == updateSection) return "update";
+    if (screen == helpSection) return "help";
+    return "home";
+  }
+
+  LinearLayout screenFromKey(String key) {
+    if ("pride".equals(key)) return prideSiemensSection;
+    if ("dashboard".equals(key)) return dashboardSection;
+    if ("diagnostic".equals(key)) return diagnosticMenu;
+    if ("parameters".equals(key)) return parametersMenu;
+    if ("dynamic".equals(key)) return dynamicParametersSection;
+    if ("dtc".equals(key)) return dtcSection;
+    if ("ecuSelection".equals(key)) return ecuSelectionSection;
+    if ("speed".equals(key)) return speedSection;
+    if ("emissions".equals(key)) return emissionsSection;
+    if ("air".equals(key)) return airSection;
+    if ("fuel".equals(key)) return fuelSection;
+    if ("ignition".equals(key)) return ignitionSection;
+    if ("actuators".equals(key)) return actuatorSection;
+    if ("settings".equals(key)) return settingsSection;
+    if ("update".equals(key)) return updateSection;
+    if ("help".equals(key)) return helpSection;
+    return home;
+  }
+
   void show(LinearLayout screen) {
-    if(currentScreen != null) currentScreen.setVisibility(View.GONE);
-    currentScreen = screen;
-    screen.setVisibility(View.VISIBLE);
-    if (screen == home && scrollContainer != null) {
-      scrollContainer.post(() -> scrollContainer.scrollTo(0, 0));
+    if (screen == null || currentScreen == screen) return;
+    if (scrollContainer != null && currentScreen != null) {
+      screenScrollPositions.put(screenKey(currentScreen), scrollContainer.getScrollY());
+      currentScreen.setVisibility(View.GONE);
     }
+    currentScreen = screen;
+    activeScreenKey = screenKey(screen);
+    screen.setVisibility(View.VISIBLE);
+    preferences.edit().putString("yasir.lastScreen", activeScreenKey)
+        .putString("yasir.lastBrand", selectedBrand)
+        .putString("yasir.lastEcu", selectedEcu).apply();
+    if (scrollContainer != null) {
+      final int position = screenScrollPositions.containsKey(activeScreenKey) ?
+          screenScrollPositions.get(activeScreenKey) : 0;
+      scrollContainer.post(() -> {
+        if (currentScreen == screen) scrollContainer.scrollTo(0, position);
+      });
+    }
+  }
+
+  @Override protected void onSaveInstanceState(Bundle state) {
+    state.putString("yasir.screen", activeScreenKey);
+    state.putString("yasir.brand", selectedBrand);
+    state.putString("yasir.ecu", selectedEcu);
+    state.putInt("yasir.scroll", scrollContainer == null ? 0 : scrollContainer.getScrollY());
+    state.putBoolean("yasir.tcpConnected", tcpLive);
+    super.onSaveInstanceState(state);
   }
 
   void back(LinearLayout target) {
@@ -1177,7 +1289,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 1.9\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.0\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -1224,7 +1336,19 @@ public class MainActivity extends Activity {
     }
   }
 
-  void setStatus(String s) { ui.post(() -> status.setText(s)); }
+  void setStatus(String message) {
+    if (exiting || status == null || message == null) return;
+    ui.post(() -> {
+      if (exiting || status == null) return;
+      long now = android.os.SystemClock.elapsedRealtime();
+      // Frequent repeated telemetry status lines force the whole top bar to
+      // re-layout. Leave parameter values updating independently.
+      if (message.equals(lastUiStatus) && now - lastUiStatusAt < 4500) return;
+      lastUiStatus = message;
+      lastUiStatusAt = now;
+      if (!message.contentEquals(status.getText())) status.setText(message);
+    });
+  }
 
   void send(String command) {
     // Never block the UI thread on a slow WiFi/TCP socket.
@@ -1289,6 +1413,7 @@ public class MainActivity extends Activity {
             }
             socket = s;
             out = s.getOutputStream();
+            tcpLive = true;
           }
           setStatus("TCP به E-MAX برقرار شد؛ اتصال ECU را بزنید");
 
@@ -1322,6 +1447,7 @@ public class MainActivity extends Activity {
               try { if (socket != null) socket.close(); } catch (Exception ignored) {}
               socket = null;
               out = null;
+              tcpLive = false;
             } else {
               try { if (s != null) s.close(); } catch (Exception ignored) {}
             }
@@ -1380,7 +1506,7 @@ public class MainActivity extends Activity {
     String shown = value == null || value.equals("null") ? "—" : value;
     if (unit != null && !unit.trim().isEmpty()) shown += " " + unit;
     if (statusText != null && !statusText.trim().isEmpty()) shown += "  •  " + statusText;
-    val.setText(shown);
+    if (!shown.contentEquals(val.getText())) val.setText(shown);
   }
 
 
@@ -1467,7 +1593,9 @@ public class MainActivity extends Activity {
       upsertDynamicParameter("json_" + key, friendlyParameterName(key), String.valueOf(value), unit, "");
     }
 
-    JSONArray raw = j.optJSONArray("raw");
+    // Avoid continuously updating ~93 extra hidden raw-byte rows while
+    // the user is on the Pride dashboard. Show them only on their own page.
+    JSONArray raw = (currentScreen == dynamicParametersSection) ? j.optJSONArray("raw") : null;
     if (raw != null) {
       for (int i = 0; i < raw.length(); i++) {
         int b = raw.optInt(i, -1);
@@ -1588,7 +1716,7 @@ public class MainActivity extends Activity {
       }
       if (shown.contains("⚠")) warnings++;
       if (target != null) {
-        target.setText(shown);
+        if (!shown.contentEquals(target.getText())) target.setText(shown);
         target.setTextColor(stale ? Color.rgb(156, 171, 182) :
               shown.contains("⚠") ? Color.rgb(255, 180, 69) : teal);
       }
@@ -1736,6 +1864,7 @@ public class MainActivity extends Activity {
   }
 
   void disconnect() {
+    tcpLive = false;
     connectionEpoch++;
     running = false;
     closeSocket();
@@ -1743,6 +1872,7 @@ public class MainActivity extends Activity {
   }
 
   @Override protected void onDestroy() {
+    exiting = true;
     prideAckWorker.shutdownNow();
     disconnect();
     super.onDestroy();
