@@ -45,6 +45,14 @@ public class MainActivity extends Activity {
   TextView selectedBrandLabel, diagnosticSelectionLabel, prideSiemensUpdated;
   Button prideSiemensChoice;
   LinearLayout prideSiemensSection;
+  final LinearLayout[] prideGroupSections = new LinearLayout[4];
+  final String[] prideCurrentValues = new String[35];
+  final String[] pridePendingValues = new String[35];
+  final boolean[] pridePendingPresent = new boolean[35];
+  int pridePendingCycle = -1;
+  int prideCompleteCycles = 0;
+  int prideIncompleteCycles = 0;
+  int prideInvalidValues = 0;
   final HashMap<String, TextView> prideSiemensValues = new HashMap<>();
   String selectedBrand = "", selectedEcu = "";
   TextView updateInfo;
@@ -57,6 +65,80 @@ public class MainActivity extends Activity {
   TextView[] sparkValues = new TextView[4];
   TextView injectorAverage, dashRpm, dashCoolant, dashBattery, dashIntake, dashInjection, dashUpdated;
   LinearLayout dashboardSection;
+  private static final String[] PRIDE_IDS = {
+    "emax_pride_battery",
+    "emax_pride_air_temp",
+    "emax_pride_tps_voltage",
+    "emax_pride_tps_angle",
+    "emax_pride_map",
+    "emax_pride_rpm",
+    "emax_pride_stepper_actual",
+    "emax_pride_canister_ocr",
+    "emax_pride_canister_load",
+    "emax_pride_stepper_target",
+    "emax_pride_engine_load",
+    "emax_pride_vehicle_speed",
+    "emax_pride_injection_time",
+    "emax_pride_mileage",
+    "emax_pride_gear",
+    "emax_pride_speed_disconnects",
+    "emax_pride_speed_error_runtime",
+    "emax_pride_o2_voltage_1",
+    "emax_pride_o2_voltage_2",
+    "emax_pride_mixture_status",
+    "emax_pride_o2_correction",
+    "emax_pride_coolant",
+    "emax_pride_ac_switch",
+    "emax_pride_ac_control",
+    "emax_pride_ac_relay",
+    "emax_pride_fan_status",
+    "emax_pride_injector_1",
+    "emax_pride_injector_2",
+    "emax_pride_injector_3",
+    "emax_pride_injector_4",
+    "emax_pride_injector_average",
+    "emax_pride_spark_1",
+    "emax_pride_spark_2",
+    "emax_pride_spark_3",
+    "emax_pride_spark_4"
+  };
+  private static final String[] PRIDE_UNITS = {
+    "V",
+    "°C",
+    "V",
+    "°",
+    "mbar",
+    "rpm",
+    "",
+    "%",
+    "",
+    "",
+    "",
+    "km/h",
+    "ms",
+    "km",
+    "",
+    "بار",
+    "h",
+    "V",
+    "V",
+    "",
+    "",
+    "°C",
+    "",
+    "",
+    "",
+    "",
+    "ms",
+    "ms",
+    "ms",
+    "ms",
+    "ms",
+    "°",
+    "°",
+    "°",
+    "°"
+  };
   final String host = "192.168.4.1";
   final int port = 3333;
   int navy = Color.rgb(13,26,44), teal = Color.rgb(0,135,135);
@@ -277,7 +359,7 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 1.6 • پروفایل زیمنس پراید",16,true));
+    content.addView(text("نسخه برنامه: 1.8 • پروفایل زیمنس پراید + جدول تعمیرگاهی",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل عملیاتی فعلی: زیمنس SIM2K‑34VR.",14,false));
     content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
@@ -374,59 +456,148 @@ public class MainActivity extends Activity {
     back(home);
 
     content = prideSiemensSection;
-    content.addView(text("پروفایل زیمنس پراید • دریافت مستقیم ۳۵ مقدار از فریم‌ور V45 از طریق Wi-Fi و TCP", 14, false));
-    content.addView(text("ابتدا گوشی را به Wi-Fi دستگاه E-MAX وصل کن، سپس «اتصال به دستگاه» و «اتصال به ECU» را بزن. مقادیر پایین به‌صورت زنده جایگزین خط تیره می‌شوند.", 13, false));
-    prideSiemensUpdated = text("هنوز داده‌ای از زیمنس پراید دریافت نشده است", 13, true);
+    content.addView(text("پروفایل زیمنس پراید • نمایش تعمیرگاهی ۳۵ پارامتر", 18, true));
+    content.addView(text("اتصال: Wi-Fi E-MAX ← دستگاه ← ECU. فریم‌ور V47 بسته‌های کوتاه شماره‌دار ارسال می‌کند.", 13, false));
+    prideSiemensUpdated = text("در انتظار اولین دوره داده • ۰/۳۵", 14, true);
     content.addView(prideSiemensUpdated);
-    content.addView(text("برای نمایش داده‌ها گوشی باید به Wi-Fi E-MAX وصل باشد. نسخه STM32 V46 پیشنهاد می‌شود.", 13, false));
-    content.addView(text("سنسورها و عملکرد موتور", 19, true));
-    prideSiemensValues.put("emax_pride_battery", tableRow("ولتاژ باتری"));
-    prideSiemensValues.put("emax_pride_coolant", tableRow("دمای آب موتور"));
-    prideSiemensValues.put("emax_pride_air_temp", tableRow("دمای هوای ورودی"));
-    prideSiemensValues.put("emax_pride_tps_voltage", tableRow("ولتاژ سنسور دریچه گاز"));
-    prideSiemensValues.put("emax_pride_tps_angle", tableRow("زاویه دریچه گاز"));
-    prideSiemensValues.put("emax_pride_map", tableRow("فشار منیفولد MAP"));
-    prideSiemensValues.put("emax_pride_rpm", tableRow("دور موتور"));
-    prideSiemensValues.put("emax_pride_engine_load", tableRow("بار موتور"));
-    prideSiemensValues.put("emax_pride_vehicle_speed", tableRow("سرعت خودرو"));
-    prideSiemensValues.put("emax_pride_o2_voltage_1", tableRow("ولتاژ سنسور اکسیژن ۱"));
-    prideSiemensValues.put("emax_pride_o2_voltage_2", tableRow("ولتاژ سنسور اکسیژن ۲"));
-    prideSiemensValues.put("emax_pride_o2_correction", tableRow("تصحیح سنسور اکسیژن"));
-    content.addView(text("سوخت‌رسانی، استپر و کنیستر", 19, true));
-    prideSiemensValues.put("emax_pride_injection_time", tableRow("زمان پاشش موتور"));
-    prideSiemensValues.put("emax_pride_injector_1", tableRow("زمان پاشش انژکتور ۱"));
-    prideSiemensValues.put("emax_pride_injector_2", tableRow("زمان پاشش انژکتور ۲"));
-    prideSiemensValues.put("emax_pride_injector_3", tableRow("زمان پاشش انژکتور ۳"));
-    prideSiemensValues.put("emax_pride_injector_4", tableRow("زمان پاشش انژکتور ۴"));
-    prideSiemensValues.put("emax_pride_injector_average", tableRow("میانگین زمان پاشش"));
-    prideSiemensValues.put("emax_pride_stepper_actual", tableRow("موقعیت واقعی استپر"));
-    prideSiemensValues.put("emax_pride_stepper_target", tableRow("موقعیت هدف استپر"));
-    prideSiemensValues.put("emax_pride_canister_ocr", tableRow("فرمان شیر کنیستر"));
-    prideSiemensValues.put("emax_pride_canister_load", tableRow("بار کنیستر"));
-    content.addView(text("جرقه و احتراق", 19, true));
-    prideSiemensValues.put("emax_pride_spark_1", tableRow("آوانس جرقه سیلندر ۱"));
-    prideSiemensValues.put("emax_pride_spark_2", tableRow("آوانس جرقه سیلندر ۲"));
-    prideSiemensValues.put("emax_pride_spark_3", tableRow("آوانس جرقه سیلندر ۳"));
-    prideSiemensValues.put("emax_pride_spark_4", tableRow("آوانس جرقه سیلندر ۴"));
-    prideSiemensValues.put("emax_pride_mixture_status", tableRow("وضعیت حلقه تنظیم سوخت"));
-    content.addView(text("وضعیت خودرو و خروجی‌ها", 19, true));
-    prideSiemensValues.put("emax_pride_mileage", tableRow("مسافت پیموده‌شده"));
-    prideSiemensValues.put("emax_pride_gear", tableRow("وضعیت دنده"));
-    prideSiemensValues.put("emax_pride_speed_disconnects", tableRow("تعداد قطعی سنسور سرعت"));
-    prideSiemensValues.put("emax_pride_speed_error_runtime", tableRow("زمان خطای سنسور سرعت"));
-    prideSiemensValues.put("emax_pride_ac_switch", tableRow("کلید کولر"));
-    prideSiemensValues.put("emax_pride_ac_control", tableRow("کنترل کولر"));
-    prideSiemensValues.put("emax_pride_ac_relay", tableRow("رله کولر"));
-    prideSiemensValues.put("emax_pride_fan_status", tableRow("وضعیت فن خنک‌کننده"));
+    content.addView(text("علامت ⚠ یعنی مقدار غیرعادی یا فرمول نیازمند بررسی است؛ مقدار با قطعیت تأیید نشده.", 12, false));
+
+    android.widget.HorizontalScrollView prideTabsScroll = new android.widget.HorizontalScrollView(this);
+    prideTabsScroll.setHorizontalScrollBarEnabled(false);
+    LinearLayout prideTabs = new LinearLayout(this);
+    prideTabs.setOrientation(LinearLayout.HORIZONTAL);
+    prideTabs.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    String[] tabTitles = {"همه", "سنسورها", "سوخت", "جرقه", "وضعیت"};
+    for (int tab = 0; tab < tabTitles.length; tab++) {
+      final int groupIndex = tab - 1;
+      Button tabButton = new Button(this);
+      tabButton.setText(tabTitles[tab]);
+      tabButton.setTextSize(12);
+      tabButton.setAllCaps(false);
+      tabButton.setMinHeight(dp(38));
+      tabButton.setOnClickListener(v -> showPrideGroup(groupIndex));
+      prideTabs.addView(tabButton, new LinearLayout.LayoutParams(-2, dp(46)));
+    }
+    prideTabsScroll.addView(prideTabs);
+    prideSiemensSection.addView(prideTabsScroll);
+    prideGroupSections[0] = new LinearLayout(this);
+    prideGroupSections[0].setOrientation(LinearLayout.VERTICAL);
+    prideGroupSections[0].setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    prideSiemensSection.addView(prideGroupSections[0]);
+    content = prideGroupSections[0];
+    content.addView(text("سنسورها و عملکرد موتور", 18, true));
+    prideSiemensValues.put("emax_pride_battery", prideCompactRow("ولتاژ باتری"));
+    prideSiemensValues.put("emax_pride_coolant", prideCompactRow("دمای آب موتور"));
+    prideSiemensValues.put("emax_pride_air_temp", prideCompactRow("دمای هوای ورودی"));
+    prideSiemensValues.put("emax_pride_tps_voltage", prideCompactRow("ولتاژ سنسور دریچه گاز"));
+    prideSiemensValues.put("emax_pride_tps_angle", prideCompactRow("زاویه دریچه گاز"));
+    prideSiemensValues.put("emax_pride_map", prideCompactRow("فشار منیفولد MAP"));
+    prideSiemensValues.put("emax_pride_rpm", prideCompactRow("دور موتور"));
+    prideSiemensValues.put("emax_pride_engine_load", prideCompactRow("بار موتور"));
+    prideSiemensValues.put("emax_pride_vehicle_speed", prideCompactRow("سرعت خودرو"));
+    prideSiemensValues.put("emax_pride_o2_voltage_1", prideCompactRow("ولتاژ سنسور اکسیژن ۱"));
+    prideSiemensValues.put("emax_pride_o2_voltage_2", prideCompactRow("ولتاژ سنسور اکسیژن ۲"));
+    prideSiemensValues.put("emax_pride_o2_correction", prideCompactRow("تصحیح سنسور اکسیژن"));
+    prideGroupSections[1] = new LinearLayout(this);
+    prideGroupSections[1].setOrientation(LinearLayout.VERTICAL);
+    prideGroupSections[1].setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    prideSiemensSection.addView(prideGroupSections[1]);
+    content = prideGroupSections[1];
+    content.addView(text("سوخت‌رسانی و استپر", 18, true));
+    prideSiemensValues.put("emax_pride_injection_time", prideCompactRow("زمان پاشش موتور"));
+    prideSiemensValues.put("emax_pride_injector_1", prideCompactRow("زمان پاشش انژکتور ۱"));
+    prideSiemensValues.put("emax_pride_injector_2", prideCompactRow("زمان پاشش انژکتور ۲"));
+    prideSiemensValues.put("emax_pride_injector_3", prideCompactRow("زمان پاشش انژکتور ۳"));
+    prideSiemensValues.put("emax_pride_injector_4", prideCompactRow("زمان پاشش انژکتور ۴"));
+    prideSiemensValues.put("emax_pride_injector_average", prideCompactRow("میانگین زمان پاشش"));
+    prideSiemensValues.put("emax_pride_stepper_actual", prideCompactRow("موقعیت واقعی استپر"));
+    prideSiemensValues.put("emax_pride_stepper_target", prideCompactRow("موقعیت هدف استپر"));
+    prideSiemensValues.put("emax_pride_canister_ocr", prideCompactRow("فرمان شیر کنیستر"));
+    prideSiemensValues.put("emax_pride_canister_load", prideCompactRow("بار کنیستر"));
+    prideGroupSections[2] = new LinearLayout(this);
+    prideGroupSections[2].setOrientation(LinearLayout.VERTICAL);
+    prideGroupSections[2].setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    prideSiemensSection.addView(prideGroupSections[2]);
+    content = prideGroupSections[2];
+    content.addView(text("جرقه و احتراق", 18, true));
+    prideSiemensValues.put("emax_pride_spark_1", prideCompactRow("آوانس جرقه سیلندر ۱"));
+    prideSiemensValues.put("emax_pride_spark_2", prideCompactRow("آوانس جرقه سیلندر ۲"));
+    prideSiemensValues.put("emax_pride_spark_3", prideCompactRow("آوانس جرقه سیلندر ۳"));
+    prideSiemensValues.put("emax_pride_spark_4", prideCompactRow("آوانس جرقه سیلندر ۴"));
+    prideSiemensValues.put("emax_pride_mixture_status", prideCompactRow("وضعیت حلقه تنظیم سوخت"));
+    prideGroupSections[3] = new LinearLayout(this);
+    prideGroupSections[3].setOrientation(LinearLayout.VERTICAL);
+    prideGroupSections[3].setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    prideSiemensSection.addView(prideGroupSections[3]);
+    content = prideGroupSections[3];
+    content.addView(text("وضعیت خودرو و خروجی‌ها", 18, true));
+    prideSiemensValues.put("emax_pride_mileage", prideCompactRow("مسافت پیموده‌شده"));
+    prideSiemensValues.put("emax_pride_gear", prideCompactRow("وضعیت دنده"));
+    prideSiemensValues.put("emax_pride_speed_disconnects", prideCompactRow("تعداد قطعی سنسور سرعت"));
+    prideSiemensValues.put("emax_pride_speed_error_runtime", prideCompactRow("زمان خطای سنسور سرعت"));
+    prideSiemensValues.put("emax_pride_ac_switch", prideCompactRow("کلید کولر"));
+    prideSiemensValues.put("emax_pride_ac_control", prideCompactRow("کنترل کولر"));
+    prideSiemensValues.put("emax_pride_ac_relay", prideCompactRow("رله کولر"));
+    prideSiemensValues.put("emax_pride_fan_status", prideCompactRow("وضعیت فن خنک‌کننده"));
+    content = prideSiemensSection;
+    button("کپی گزارش ۳۵ پارامتر", () -> copyPrideReport());
     button("اتصال به ECU", () -> send("!1"));
     button("رفتن به عیب‌یابی", () -> show(diagnosticMenu));
     back(parametersMenu);
+    showPrideGroup(0);
 
     content = root;
     addBottomNavigation(appShell);
     applyThemeToViews(root);
     applyFontScale(root);
     show(home);
+  }
+
+
+  // Compact professional ECU parameter table, with right-aligned name and left-side value.
+  TextView prideCompactRow(String label) {
+    LinearLayout row = new LinearLayout(this);
+    row.setOrientation(LinearLayout.HORIZONTAL);
+    row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setPadding(dp(8), dp(3), dp(8), dp(3));
+    row.setTag("pride-row");
+    row.setBackgroundColor(cardBackground());
+    TextView value = text("—", 16, true);
+    value.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+    value.setTextColor(teal);
+    row.addView(value, new LinearLayout.LayoutParams(0, dp(43), 0.43f));
+    TextView name = text(label, 14, false);
+    name.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+    row.addView(name, new LinearLayout.LayoutParams(0, dp(43), 0.57f));
+    content.addView(row, new LinearLayout.LayoutParams(-1, -2));
+    View line = new View(this);
+    line.setBackgroundColor(Color.rgb(64, 97, 105));
+    content.addView(line, new LinearLayout.LayoutParams(-1, dp(1)));
+    return value;
+  }
+
+  void showPrideGroup(int group) {
+    for (int i = 0; i < prideGroupSections.length; i++) {
+      if (prideGroupSections[i] != null)
+        prideGroupSections[i].setVisibility(group < 0 || group == i ? View.VISIBLE : View.GONE);
+    }
+  }
+
+  void copyPrideReport() {
+    StringBuilder report = new StringBuilder("YASIR DIAG — Siemens Pride 35 parameters\\n");
+    if (prideSiemensUpdated != null)
+      report.append(prideSiemensUpdated.getText()).append('\\n');
+    for (int i=0; i<PRIDE_IDS.length; i++) {
+      report.append(prideFriendlyName(PRIDE_IDS[i])).append(": ");
+      report.append(prideCurrentValues[i] == null ? "—" : prideCurrentValues[i]).append('\\n');
+    }
+    android.content.ClipboardManager clipboard =
+       (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+    if (clipboard != null) {
+      clipboard.setPrimaryClip(android.content.ClipData.newPlainText("YASIR_Pride_Report", report.toString()));
+      setStatus("گزارش ۳۵ پارامتر در حافظه کپی شد");
+    }
   }
 
   int dp(float value) { return (int)(value * getResources().getDisplayMetrics().density + 0.5f); }
@@ -987,7 +1158,7 @@ public class MainActivity extends Activity {
         bg.setCornerRadius(10);
         bg.setStroke(1, themeMode == 1 ? Color.rgb(67, 125, 144) : Color.rgb(31, 44, 112));
         layout.setBackground(bg);
-      } else if ("table-row".equals(tag) || "dynamic-row".equals(tag)) {
+      } else if ("table-row".equals(tag) || "dynamic-row".equals(tag) || "pride-row".equals(tag)) {
         boolean alternate = (layout.getChildCount() % 2 == 0);
         layout.setBackgroundColor(rowBackground(alternate));
       }
@@ -1000,7 +1171,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 1.6\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 1.8\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -1309,9 +1480,100 @@ public class MainActivity extends Activity {
       upsertDynamicParameter("spark_" + i, "آوانس جرقه سیلندر " + (i+1), ign.optString(i), "°", "نامزد");
   }
 
+
+  // Values from V47 arrive in 7 numbered, low-bandwidth packets per ECU sample.
+  // Stage the values and refresh the entire on-screen table together.
+  void updateCompactPride(JSONObject j) {
+    int cycle = j.optInt("s", -1);
+    int start = j.optInt("i", -1);
+    JSONArray values = j.optJSONArray("v");
+    if (cycle < 0 || start < 0 || start >= PRIDE_IDS.length ||
+        values == null || start + values.length() > PRIDE_IDS.length) {
+      setStatus("بسته زیمنس پراید نامعتبر یا خارج از محدوده بود");
+      return;
+    }
+    if (pridePendingCycle != -1 && pridePendingCycle != cycle) {
+      // Last cycle lacked its closing packet. Report what did arrive, not stale values.
+      renderPrideCycle(false);
+    }
+    if (pridePendingCycle != cycle) {
+      pridePendingCycle = cycle;
+      java.util.Arrays.fill(pridePendingValues, null);
+      java.util.Arrays.fill(pridePendingPresent, false);
+    }
+    for (int k = 0; k < values.length(); k++) {
+      int idx = start + k;
+      if (values.isNull(k)) continue;
+      Object rawValue = values.opt(k);
+      if (rawValue == null || rawValue == JSONObject.NULL) continue;
+      String shown = String.valueOf(rawValue);
+      String unit = PRIDE_UNITS[idx];
+      if (!unit.isEmpty()) shown += " " + unit;
+      if (suspectPrideNumber(idx, rawValue)) shown += " ⚠";
+      pridePendingValues[idx] = shown;
+      pridePendingPresent[idx] = true;
+    }
+    if (start + values.length() >= PRIDE_IDS.length) {
+      renderPrideCycle(true);
+      pridePendingCycle = -1;
+    }
+  }
+
+  boolean suspectPrideNumber(int idx, Object data) {
+    if (data instanceof String) return false;
+    double x;
+    try { x = Double.parseDouble(String.valueOf(data)); }
+    catch (Exception ignored) { return true; }
+    if (Double.isNaN(x) || Double.isInfinite(x)) return true;
+    if (idx == 0) return x < 6 || x > 18;                  // battery
+    if (idx == 1) return x < -45 || x > 140;               // intake
+    if (idx == 2) return x < 0 || x > 5.5;                 // TPS voltage
+    if (idx == 3) return x < 0 || x > 110;                 // TPS angle
+    if (idx == 4) return x < 0 || x > 2200;                // MAP mbar
+    if (idx == 5) return x < 0 || x > 9000;                // RPM
+    if (idx == 11) return x < 0 || x > 250;                // speed
+    if (idx == 12 || (idx >= 26 && idx <= 30)) return x < 0 || x > 75;
+    if (idx == 17 || idx == 18) return x < 0 || x > 5.5;   // oxygen volt
+    if (idx == 21) return x < -45 || x > 150;              // coolant
+    if (idx >= 31 && idx <= 34) return x < -35 || x > 75; // spark
+    return false;
+  }
+
+  void renderPrideCycle(boolean completed) {
+    int received = 0;
+    int warnings = 0;
+    for (int idx = 0; idx < PRIDE_IDS.length; idx++) {
+      TextView target = prideSiemensValues.get(PRIDE_IDS[idx]);
+      if (pridePendingPresent[idx]) received++;
+      String shown = pridePendingPresent[idx] ? pridePendingValues[idx] : "—";
+      prideCurrentValues[idx] = shown;
+      if (shown.contains("⚠")) warnings++;
+      if (target != null) {
+        target.setText(shown);
+        target.setTextColor(shown.contains("⚠") ? Color.rgb(255, 180, 69) : teal);
+      }
+    }
+    prideInvalidValues = warnings;
+    if (received == 35 && completed) prideCompleteCycles++;
+    else prideIncompleteCycles++;
+    if (prideSiemensUpdated != null) {
+      String time = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+                        .format(new java.util.Date());
+      prideSiemensUpdated.setText("دریافت: " + received + "/۳۵ • " +
+          (received == 35 ? "کامل" : "ناقص؛ احتمال مشکل مسیر UART/ESP") +
+          " • مشکوک: " + warnings + " • " + time);
+    }
+    setStatus("زیمنس پراید: " + received + "/35 پارامتر؛ " +
+      (received == 35 ? "دوره کامل" : "دوره ناقص"));
+  }
+
   void parse(String line) {
     try {
       JSONObject j = new JSONObject(line);
+      if ("p".equals(j.optString("t"))) {
+        updateCompactPride(j);
+        return;
+      }
       String type = j.optString("type");
       if(type.equals("parameters")) {
         prideFrames++;
