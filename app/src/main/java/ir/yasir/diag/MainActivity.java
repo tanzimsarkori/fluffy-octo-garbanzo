@@ -37,7 +37,10 @@ public class MainActivity extends Activity {
   ScrollView scrollContainer;
   final HashMap<Integer, Bitmap> vehiclePhotoCache = new HashMap<>();
   final HashMap<Integer, Boolean> vehiclePhotoLoading = new HashMap<>();
-  TextView selectedBrandLabel, diagnosticSelectionLabel;
+  TextView selectedBrandLabel, diagnosticSelectionLabel, prideSiemensUpdated;
+  Button prideSiemensChoice;
+  LinearLayout prideSiemensSection;
+  final HashMap<String, TextView> prideSiemensValues = new HashMap<>();
   String selectedBrand = "", selectedEcu = "";
   TextView updateInfo;
   SharedPreferences preferences;
@@ -157,6 +160,7 @@ public class MainActivity extends Activity {
     resetSection = section("ریست مقادیر سازگار یافته");
     chartSection = section("نمودارها");
     dynamicParametersSection = section("پارامترهای زنده و قابل توسعه");
+    prideSiemensSection = section("ECU زیمنس پراید • ۳۵ پارامتر زنده");
     ecuSelectionSection = section("انتخاب ECU");
     diagnosticMenu = section("منوی عیب‌یابی");
     settingsSection = section("تنظیمات ظاهری و برنامه");
@@ -186,7 +190,7 @@ public class MainActivity extends Activity {
     quickGrid.setUseDefaultMargins(false);
     home.addView(quickGrid, new LinearLayout.LayoutParams(-1, -2));
     addQuickCard(quickGrid, "عیب‌یابی سریع", "خواندن و پاک‌کردن خطاها", "⌕", Color.rgb(0, 174, 235), () -> { selectedBrand = selectedBrand.isEmpty() ? "خودرو انتخاب‌نشده" : selectedBrand; selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
-    addQuickCard(quickGrid, "داده‌های زنده", "مشاهده پارامترهای لحظه‌ای", "▥", Color.rgb(0, 214, 133), () -> { if (!"زیمنس SIM2K-34VR".equals(selectedEcu)) selectedEcu = "زیمنس SIM2K-34VR"; show(dashboardSection); });
+    addQuickCard(quickGrid, "داده‌های زنده", "مشاهده پارامترهای لحظه‌ای", "▥", Color.rgb(0, 214, 133), () -> { if ("زیمنس پراید".equals(selectedEcu)) show(prideSiemensSection); else show(dashboardSection); });
     addQuickCard(quickGrid, "تست عملگرها", "تست‌های تعمیرگاهی", "⚙", Color.rgb(255, 176, 0), () -> show(actuatorSection));
     addQuickCard(quickGrid, "اطلاعات ECU", "شناسه و پروفایل انتخابی", "▤", Color.rgb(181, 93, 255), () -> show(ecuSection));
 
@@ -205,8 +209,14 @@ public class MainActivity extends Activity {
     content = ecuSelectionSection;
     selectedBrandLabel = text("شرکت انتخابی: —",18,true);
     content.addView(selectedBrandLabel);
-    content.addView(text("نوع ECU را انتخاب کنید. فقط پروفایل زیمنس SIM2K-34VR در حال حاضر به فریم‌ور متصل است؛ سایر موارد فعلاً در فهرست انتخاب هستند و تا آماده‌شدن پروفایل اختصاصی فرمان عیب‌یابی نمی‌فرستند.",14,false));
-    button("زیمنس SIM2K-34VR — پروفایل فعال فعلی", () -> chooseEcu("زیمنس SIM2K-34VR"));
+    content.addView(text("ECU خودرو را انتخاب کنید. پروفایل زیمنس پراید با فریم‌ور V45 دارای ۳۵ پارامتر زنده است. پروفایل SIM2K-34VR و امکانات قبلی نیز حفظ شده‌اند؛ سایر انتخاب‌ها هنوز آزمایشی هستند.",14,false));
+    button("زیمنس SIM2K-34VR — پروفایل قبلی", () -> chooseEcu("زیمنس SIM2K-34VR"));
+    prideSiemensChoice = new Button(this);
+    prideSiemensChoice.setText("زیمنس پراید — ۳۵ پارامتر تأییدشده");
+    prideSiemensChoice.setAllCaps(false);
+    prideSiemensChoice.setVisibility(View.GONE);
+    prideSiemensChoice.setOnClickListener(v -> chooseEcu("زیمنس پراید"));
+    content.addView(prideSiemensChoice);
     button("زیمنس", () -> chooseEcu("زیمنس"));
     button("زیمنس دوگانه‌سوز", () -> chooseEcu("زیمنس دوگانه‌سوز"));
     button("ساژم (SAGEM)", () -> chooseEcu("ساژم (SAGEM)"));
@@ -225,6 +235,7 @@ public class MainActivity extends Activity {
     button("خواندن عیب", () -> { show(dtcSection); send("!2"); });
     button("پاک کردن عیب", () -> { show(dtcSection); confirmClear(); });
     button("داشبورد زنده موتور", () -> show(dashboardSection));
+    button("۳۵ پارامتر ECU زیمنس پراید", () -> show(prideSiemensSection));
     button("پارامترها", () -> show(parametersMenu));
     button("همه پارامترهای زنده (پویا)", () -> show(dynamicParametersSection));
     button("عملگرها", () -> show(actuatorSection));
@@ -261,7 +272,7 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 1.4",16,true));
+    content.addView(text("نسخه برنامه: 1.6 • پروفایل زیمنس پراید",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل عملیاتی فعلی: زیمنس SIM2K‑34VR.",14,false));
     content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
@@ -285,6 +296,7 @@ public class MainActivity extends Activity {
     button("سیگنال جرقه", () -> show(ignitionSection));
     button("اطلاعات مکش هوا", () -> show(airSection));
     button("اطلاعات تزریق سوخت", () -> show(fuelSection));
+    button("ECU زیمنس پراید — ۳۵ پارامتر زنده", () -> show(prideSiemensSection));
     back(home);
 
     content = speedSection;
@@ -355,6 +367,54 @@ public class MainActivity extends Activity {
     dynamicParameterList.setOrientation(LinearLayout.VERTICAL);
     dynamicParametersSection.addView(dynamicParameterList);
     back(home);
+
+    content = prideSiemensSection;
+    content.addView(text("پروفایل زیمنس پراید • دریافت مستقیم ۳۵ مقدار از فریم‌ور V45 از طریق Wi-Fi و TCP", 14, false));
+    content.addView(text("ابتدا گوشی را به Wi-Fi دستگاه E-MAX وصل کن، سپس «اتصال به دستگاه» و «اتصال به ECU» را بزن. مقادیر پایین به‌صورت زنده جایگزین خط تیره می‌شوند.", 13, false));
+    prideSiemensUpdated = text("هنوز داده‌ای از زیمنس پراید دریافت نشده است", 13, true);
+    content.addView(prideSiemensUpdated);
+    content.addView(text("سنسورها و عملکرد موتور", 19, true));
+    prideSiemensValues.put("emax_pride_battery", tableRow("ولتاژ باتری"));
+    prideSiemensValues.put("emax_pride_coolant", tableRow("دمای آب موتور"));
+    prideSiemensValues.put("emax_pride_air_temp", tableRow("دمای هوای ورودی"));
+    prideSiemensValues.put("emax_pride_tps_voltage", tableRow("ولتاژ سنسور دریچه گاز"));
+    prideSiemensValues.put("emax_pride_tps_angle", tableRow("زاویه دریچه گاز"));
+    prideSiemensValues.put("emax_pride_map", tableRow("فشار منیفولد MAP"));
+    prideSiemensValues.put("emax_pride_rpm", tableRow("دور موتور"));
+    prideSiemensValues.put("emax_pride_engine_load", tableRow("بار موتور"));
+    prideSiemensValues.put("emax_pride_vehicle_speed", tableRow("سرعت خودرو"));
+    prideSiemensValues.put("emax_pride_o2_voltage_1", tableRow("ولتاژ سنسور اکسیژن ۱"));
+    prideSiemensValues.put("emax_pride_o2_voltage_2", tableRow("ولتاژ سنسور اکسیژن ۲"));
+    prideSiemensValues.put("emax_pride_o2_correction", tableRow("تصحیح سنسور اکسیژن"));
+    content.addView(text("سوخت‌رسانی، استپر و کنیستر", 19, true));
+    prideSiemensValues.put("emax_pride_injection_time", tableRow("زمان پاشش موتور"));
+    prideSiemensValues.put("emax_pride_injector_1", tableRow("زمان پاشش انژکتور ۱"));
+    prideSiemensValues.put("emax_pride_injector_2", tableRow("زمان پاشش انژکتور ۲"));
+    prideSiemensValues.put("emax_pride_injector_3", tableRow("زمان پاشش انژکتور ۳"));
+    prideSiemensValues.put("emax_pride_injector_4", tableRow("زمان پاشش انژکتور ۴"));
+    prideSiemensValues.put("emax_pride_injector_average", tableRow("میانگین زمان پاشش"));
+    prideSiemensValues.put("emax_pride_stepper_actual", tableRow("موقعیت واقعی استپر"));
+    prideSiemensValues.put("emax_pride_stepper_target", tableRow("موقعیت هدف استپر"));
+    prideSiemensValues.put("emax_pride_canister_ocr", tableRow("فرمان شیر کنیستر"));
+    prideSiemensValues.put("emax_pride_canister_load", tableRow("بار کنیستر"));
+    content.addView(text("جرقه و احتراق", 19, true));
+    prideSiemensValues.put("emax_pride_spark_1", tableRow("آوانس جرقه سیلندر ۱"));
+    prideSiemensValues.put("emax_pride_spark_2", tableRow("آوانس جرقه سیلندر ۲"));
+    prideSiemensValues.put("emax_pride_spark_3", tableRow("آوانس جرقه سیلندر ۳"));
+    prideSiemensValues.put("emax_pride_spark_4", tableRow("آوانس جرقه سیلندر ۴"));
+    prideSiemensValues.put("emax_pride_mixture_status", tableRow("وضعیت حلقه تنظیم سوخت"));
+    content.addView(text("وضعیت خودرو و خروجی‌ها", 19, true));
+    prideSiemensValues.put("emax_pride_mileage", tableRow("مسافت پیموده‌شده"));
+    prideSiemensValues.put("emax_pride_gear", tableRow("وضعیت دنده"));
+    prideSiemensValues.put("emax_pride_speed_disconnects", tableRow("تعداد قطعی سنسور سرعت"));
+    prideSiemensValues.put("emax_pride_speed_error_runtime", tableRow("زمان خطای سنسور سرعت"));
+    prideSiemensValues.put("emax_pride_ac_switch", tableRow("کلید کولر"));
+    prideSiemensValues.put("emax_pride_ac_control", tableRow("کنترل کولر"));
+    prideSiemensValues.put("emax_pride_ac_relay", tableRow("رله کولر"));
+    prideSiemensValues.put("emax_pride_fan_status", tableRow("وضعیت فن خنک‌کننده"));
+    button("اتصال به ECU", () -> send("!1"));
+    button("رفتن به عیب‌یابی", () -> show(diagnosticMenu));
+    back(parametersMenu);
 
     content = root;
     addBottomNavigation(appShell);
@@ -648,11 +708,20 @@ public class MainActivity extends Activity {
   void openEcuMenu(String brand) {
     selectedBrand = brand;
     selectedBrandLabel.setText("شرکت انتخابی: " + brand);
+    if (prideSiemensChoice != null) {
+      prideSiemensChoice.setVisibility("سایپا".equals(brand) ? View.VISIBLE : View.GONE);
+    }
     show(ecuSelectionSection);
   }
 
   void chooseEcu(String ecu) {
     selectedEcu = ecu;
+    if ("زیمنس پراید".equals(ecu)) {
+      diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
+      show(prideSiemensSection);
+      setStatus("ECU زیمنس پراید انتخاب شد • ۳۵ پارامتر زنده");
+      return;
+    }
     if ("زیمنس SIM2K-34VR".equals(ecu)) {
       diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
       show(diagnosticMenu);
@@ -737,6 +806,7 @@ public class MainActivity extends Activity {
     if(currentScreen == home) super.onBackPressed();
     else if(currentScreen == ecuSelectionSection) show(home);
     else if(currentScreen == diagnosticMenu) show(home);
+    else if(currentScreen == prideSiemensSection) show(parametersMenu);
     else if(currentScreen == speedSection || currentScreen == emissionsSection || currentScreen == ignitionSection || currentScreen == airSection || currentScreen == fuelSection) show(parametersMenu);
     else show(home);
   }
@@ -924,7 +994,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 1.4\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 1.6\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -1103,7 +1173,19 @@ public class MainActivity extends Activity {
         String name = p.optString("name", id);
         Object rawValue = p.opt("value");
         String value = rawValue == null || rawValue == JSONObject.NULL ? "—" : String.valueOf(rawValue);
-        upsertDynamicParameter(id, name, value, p.optString("unit", ""), p.optString("status", ""));
+        String unit = p.optString("unit", "");
+        String state = p.optString("status", "");
+        upsertDynamicParameter(id, name, value, unit, state);
+        if (id.startsWith("emax_pride_")) {
+          TextView prideValue = prideSiemensValues.get(id);
+          if (prideValue != null) {
+            prideValue.setText(value + (unit.isEmpty() ? "" : " " + unit));
+            prideValue.setTextColor(teal);
+            if (prideSiemensUpdated != null)
+              prideSiemensUpdated.setText("زیمنس پراید • آخرین دریافت: " +
+                new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
+          }
+        }
       }
     }
 
