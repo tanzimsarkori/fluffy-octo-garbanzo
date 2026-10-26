@@ -585,12 +585,12 @@ public class MainActivity extends Activity {
   }
 
   void copyPrideReport() {
-    StringBuilder report = new StringBuilder("YASIR DIAG — Siemens Pride 35 parameters\\n");
+    StringBuilder report = new StringBuilder("YASIR DIAG — Siemens Pride 35 parameters\n");
     if (prideSiemensUpdated != null)
-      report.append(prideSiemensUpdated.getText()).append('\\n');
+      report.append(prideSiemensUpdated.getText()).append('\n');
     for (int i=0; i<PRIDE_IDS.length; i++) {
       report.append(prideFriendlyName(PRIDE_IDS[i])).append(": ");
-      report.append(prideCurrentValues[i] == null ? "—" : prideCurrentValues[i]).append('\\n');
+      report.append(prideCurrentValues[i] == null ? "—" : prideCurrentValues[i]).append('\n');
     }
     android.content.ClipboardManager clipboard =
        (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
