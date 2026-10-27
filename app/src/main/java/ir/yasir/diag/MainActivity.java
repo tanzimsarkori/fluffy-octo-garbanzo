@@ -396,7 +396,7 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.3 • بوش زامیاد، خطاها و ۱۵ عملگر",16,true));
+    content.addView(text("نسخه برنامه: 2.4 • بوش زامیاد، خطاها و ۱۵ عملگر با ایمنی بیشتر",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل‌های عملیاتی: زیمنس پراید و بوش زامیاد 7.9.7.1.",14,false));
     content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
@@ -609,21 +609,26 @@ public class MainActivity extends Activity {
     button("خواندن کدهای خطا", () -> send("!2"));
     boschFaultValues = field("کدهای خطای ECU");
     button("پاک‌کردن خطا (نیازمند تأیید)", () -> confirmBoschClear());
-    content.addView(text("۱۵ عملگر استخراج‌شده از E-MAX • ۱۰ مورد پرخطر قفل هستند", 16, true));
+    content.addView(text("۱۵ عملگر استخراج‌شده از E-MAX • ۱۰ تست پرخطر فقط با تأیید دوم فعال می‌شوند", 16, true));
     button("توقف فوری تست (Z)", () -> send("!Z"));
     button("۱ • پمپ بنزین", () -> confirmBoschActuator(1, "پمپ بنزین"));
     button("۱۰ • گرم‌کن اکسیژن", () -> confirmBoschActuator(10, "گرم‌کن سنسور اکسیژن"));
     button("۱۱ • استپر", () -> confirmBoschActuator(11, "استپر موتور"));
     button("۱۴ • چراغ چک", () -> confirmBoschActuator(14, "چراغ چک"));
     button("۱۵ • رله کولر", () -> confirmBoschActuator(15, "رله کولر"));
-    String[] boschLocked = {
-      "۲ • انژکتور ۱ دور آرام", "۳ • انژکتور ۱ موتور خاموش",
-      "۴ • انژکتور ۲ دور آرام", "۵ • انژکتور ۲ موتور خاموش",
-      "۶ • انژکتور ۳ دور آرام", "۷ • انژکتور ۳ موتور خاموش",
-      "۸ • انژکتور ۴ دور آرام", "۹ • انژکتور ۴ موتور خاموش",
-      "۱۲ • کویل ۱-۴", "۱۳ • کویل ۲-۳"
+    String[] boschHighRisk = {
+      "انژکتور ۱ دور آرام", "انژکتور ۱ موتور خاموش",
+      "انژکتور ۲ دور آرام", "انژکتور ۲ موتور خاموش",
+      "انژکتور ۳ دور آرام", "انژکتور ۳ موتور خاموش",
+      "انژکتور ۴ دور آرام", "انژکتور ۴ موتور خاموش",
+      "کویل ۱-۴", "کویل ۲-۳"
     };
-    for (String item : boschLocked) content.addView(text("🔒 " + item, 13, false));
+    final int[] boschHighRiskIndexes = {2,3,4,5,6,7,8,9,12,13};
+    for (int i = 0; i < boschHighRisk.length; i++) {
+      final int id = boschHighRiskIndexes[i];
+      final String label = boschHighRisk[i];
+      button("⚠ " + id + " • " + label + " (پرخطر)", () -> confirmBoschHighRiskActuator(id, label));
+    }
     button("۱۹ پارامتر بوش — مرحله توسعه بعدی", () -> show(boschZamyadSection));
     back(ecuSelectionSection);
 
@@ -1209,6 +1214,45 @@ public class MainActivity extends Activity {
       }).show();
   }
 
+
+  void confirmBoschHighRiskActuator(int index, String name) {
+    new AlertDialog.Builder(this)
+      .setTitle("هشدار: تست پرخطر بوش - " + name)
+      .setMessage("این فرمان ممکن است باعث پاشش سوخت یا جرقه شود. "
+        + "فقط تعمیرکار متخصص با تجهیزات ایمن و مطابق دستورالعمل مخصوص موتور زامیاد مجاز به تست است. "
+        + "محدودیت زمانی نرم‌افزاری جایگزین ایمنی سخت‌افزاری نیست.")
+      .setNegativeButton("انصراف", null)
+      .setPositiveButton("تأیید مرحله اول", (d,w) ->
+        new AlertDialog.Builder(this)
+          .setTitle("تأیید دوم تست " + name)
+          .setMessage("اگر شرایط ایمن تست این عملگر را بررسی کرده‌ای، اجرای کوتاه را تأیید کن.")
+          .setNegativeButton("انصراف", null)
+          .setPositiveButton("شروع تست پرخطر", (d2,w2) -> sendBoschHighRisk(index))
+          .show()
+      ).show();
+  }
+
+  void sendBoschHighRisk(int index) {
+    new Thread(() -> {
+      try {
+        synchronized (this) {
+          if (out == null || socket == null || socket.isClosed()) {
+            setStatus("اتصال TCP برقرار نیست"); return;
+          }
+          out.write("!HIGH RISK YES\n".getBytes("US-ASCII"));
+          out.flush(); Thread.sleep(160);
+          out.write("!ARM\n".getBytes("US-ASCII"));
+          out.flush(); Thread.sleep(160);
+          out.write(String.format(java.util.Locale.US, "!T%02d\n", index).getBytes("US-ASCII"));
+          out.flush();
+        }
+        setStatus("تست پرخطر بوش " + index + " ارسال شد؛ توقف خودکار را بررسی کن");
+      } catch (Exception e) {
+        setStatus("فرمان بوش ناموفق: " + e.getMessage());
+      }
+    }, "yasir-bosch-highrisk").start();
+  }
+
   void confirmActuator(String name, char command, boolean highRisk) {
     String warning = "فقط با موتور خاموش، خودرو ثابت و محیط ایمن اجرا کنید. فرمان به ECU ارسال می‌شود و فریم‌ور V42 باید توقف خودکار ۲٫۵ ثانیه‌ای داشته باشد.";
     if (highRisk) {
@@ -1447,7 +1491,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.3\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.4\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
