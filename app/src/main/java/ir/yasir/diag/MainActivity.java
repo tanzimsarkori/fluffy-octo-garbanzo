@@ -302,13 +302,13 @@ public class MainActivity extends Activity {
     quickGrid.setColumnCount(2);
     quickGrid.setUseDefaultMargins(false);
     home.addView(quickGrid, new LinearLayout.LayoutParams(-1, -2));
-    addQuickCard(quickGrid, "عیب‌یابی سریع", "خواندن و پاک‌کردن خطاها", "⌕", Color.rgb(0, 174, 235), () -> { selectedBrand = selectedBrand.isEmpty() ? "خودرو انتخاب‌نشده" : selectedBrand; selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
+    addQuickCard(quickGrid, "عیب‌یابی سریع", "خواندن و پاک‌کردن خطاها", "⌕", Color.rgb(0, 174, 235), () -> { if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) { show(boschServiceSection); return; } selectedBrand = selectedBrand.isEmpty() ? "خودرو انتخاب‌نشده" : selectedBrand; if (selectedEcu.isEmpty()) selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
     addQuickCard(quickGrid, "داده‌های زنده", "مشاهده پارامترهای لحظه‌ای", "▥", Color.rgb(0, 214, 133), () -> {
       if ("زیمنس پراید".equals(selectedEcu)) show(prideSiemensSection);
-      else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) show(boschZamyadSection);
+      else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) show(boschServiceSection);
       else show(dashboardSection);
     });
-    addQuickCard(quickGrid, "تست عملگرها", "تست‌های تعمیرگاهی", "⚙", Color.rgb(255, 176, 0), () -> show(actuatorSection));
+    addQuickCard(quickGrid, "تست عملگرها", "تست‌های تعمیرگاهی", "⚙", Color.rgb(255, 176, 0), () -> show("بوش زامیاد 7.9.7.1".equals(selectedEcu) ? boschServiceSection : actuatorSection));
     addQuickCard(quickGrid, "اطلاعات ECU", "شناسه و پروفایل انتخابی", "▤", Color.rgb(181, 93, 255), () -> show(ecuSection));
 
     home.addView(sectionTitle("تنظیمات و ابزارها", "شخصی‌سازی و نگهداری", "⚙"));
