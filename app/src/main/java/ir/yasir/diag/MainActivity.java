@@ -51,7 +51,9 @@ public class MainActivity extends Activity {
   final HashMap<Integer, Bitmap> vehiclePhotoCache = new HashMap<>();
   final HashMap<Integer, Boolean> vehiclePhotoLoading = new HashMap<>();
   TextView selectedBrandLabel, diagnosticSelectionLabel, prideSiemensUpdated;
-  Button prideSiemensChoice;
+  Button prideSiemensChoice, boschZamyadChoice;
+  LinearLayout boschServiceSection;
+  TextView boschFaultValues;
   LinearLayout prideSiemensSection, boschZamyadSection;
   TextView boschZamyadUpdated;
   final HashMap<String, TextView> boschZamyadValues = new HashMap<>();
@@ -269,7 +271,8 @@ public class MainActivity extends Activity {
     chartSection = section("نمودارها");
     dynamicParametersSection = section("پارامترهای زنده و قابل توسعه");
     prideSiemensSection = section("ECU زیمنس پراید • ۳۵ پارامتر زنده");
-    boschZamyadSection = section("ECU بوش زامیاد 7.9.7.1 • ۱۹ پارامتر زنده");
+    boschZamyadSection = section("ECU بوش زامیاد 7.9.7.1 • داده زنده آزمایشی");
+    boschServiceSection = section("ECU بوش زامیاد 7.9.7.1 — خطاها و عملگرها");
     ecuSelectionSection = section("انتخاب ECU");
     diagnosticMenu = section("منوی عیب‌یابی");
     settingsSection = section("تنظیمات ظاهری و برنامه");
@@ -277,7 +280,7 @@ public class MainActivity extends Activity {
     helpSection = section("راهنما و اطلاعات برنامه");
 
     content = home;
-    content.addView(sectionTitle("انتخاب سازنده خودرو", "۸ گروه خودرو", "🚘"));
+    content.addView(sectionTitle("انتخاب سازنده خودرو", "۹ گروه خودرو", "🚘"));
     android.widget.GridLayout companyGrid = new android.widget.GridLayout(this);
     companyGrid.setColumnCount(4);
     companyGrid.setUseDefaultMargins(false);
@@ -292,6 +295,7 @@ public class MainActivity extends Activity {
     addIndustrialCompanyCard(companyGrid, "رنو", 6, "RN");
     addIndustrialCompanyCard(companyGrid, "کرمان موتور", 5, "KM");
     addIndustrialCompanyCard(companyGrid, "دیار خودرو", 4, "DY");
+    addIndustrialCompanyCard(companyGrid, "زامیاد", 8, "ZM");
 
     home.addView(sectionTitle("دسترسی سریع", "ابزارهای پرکاربرد", "⚡"));
     android.widget.GridLayout quickGrid = new android.widget.GridLayout(this);
@@ -334,7 +338,12 @@ public class MainActivity extends Activity {
     button("زیمنس دوگانه‌سوز", () -> chooseEcu("زیمنس دوگانه‌سوز"));
     button("ساژم (SAGEM)", () -> chooseEcu("ساژم (SAGEM)"));
     button("بوش (BOSCH)", () -> chooseEcu("بوش (BOSCH)"));
-    button("بوش زامیاد 7.9.7.1 — ۱۹ پارامتر زنده", () -> chooseEcu("بوش زامیاد 7.9.7.1"));
+    boschZamyadChoice = new Button(this);
+    boschZamyadChoice.setText("بوش زامیاد 7.9.7.1 — عیب‌یابی و ۱۵ عملگر");
+    boschZamyadChoice.setAllCaps(false);
+    boschZamyadChoice.setVisibility(View.GONE);
+    boschZamyadChoice.setOnClickListener(v -> chooseEcu("بوش زامیاد 7.9.7.1"));
+    content.addView(boschZamyadChoice);
     button("والئو (VALEO)", () -> chooseEcu("والئو (VALEO)"));
     button("عظام", () -> chooseEcu("عظام"));
     button("SB13", () -> chooseEcu("SB13"));
@@ -350,7 +359,7 @@ public class MainActivity extends Activity {
     button("پاک کردن عیب", () -> { show(dtcSection); confirmClear(); });
     button("داشبورد زنده موتور", () -> show(dashboardSection));
     button("۳۵ پارامتر ECU زیمنس پراید", () -> show(prideSiemensSection));
-    button("۱۹ پارامتر ECU بوش زامیاد 7.9.7.1", () -> show(boschZamyadSection));
+    button("عیب‌یابی Bosch زامیاد 7.9.7.1", () -> show(boschServiceSection));
     button("پارامترها", () -> show(parametersMenu));
     button("همه پارامترهای زنده (پویا)", () -> show(dynamicParametersSection));
     button("عملگرها", () -> show(actuatorSection));
@@ -387,7 +396,7 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.2 • پروفایل بوش زامیاد 7.9.7.1",16,true));
+    content.addView(text("نسخه برنامه: 2.3 • بوش زامیاد، خطاها و ۱۵ عملگر",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل‌های عملیاتی: زیمنس پراید و بوش زامیاد 7.9.7.1.",14,false));
     content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
@@ -593,9 +602,34 @@ public class MainActivity extends Activity {
     back(parametersMenu);
     showPrideGroup(0);
 
+    content = boschServiceSection;
+    content.addView(text("Bosch 7.9.7.1 زامیاد • برنامه مستقل از زیمنس پراید", 17, true));
+    content.addView(text("نیازمند STM32 Bosch V01. برای اولین تست، خودرو ثابت، موتور خاموش، سوئیچ باز و اتصالات ایمن باشند.", 13, false));
+    button("اتصال به ECU بوش", () -> send("!1"));
+    button("خواندن کدهای خطا", () -> send("!2"));
+    boschFaultValues = field("کدهای خطای ECU");
+    button("پاک‌کردن خطا (نیازمند تأیید)", () -> confirmBoschClear());
+    content.addView(text("۱۵ عملگر استخراج‌شده از E-MAX • ۱۰ مورد پرخطر قفل هستند", 16, true));
+    button("توقف فوری تست (Z)", () -> send("!Z"));
+    button("۱ • پمپ بنزین", () -> confirmBoschActuator(1, "پمپ بنزین"));
+    button("۱۰ • گرم‌کن اکسیژن", () -> confirmBoschActuator(10, "گرم‌کن سنسور اکسیژن"));
+    button("۱۱ • استپر", () -> confirmBoschActuator(11, "استپر موتور"));
+    button("۱۴ • چراغ چک", () -> confirmBoschActuator(14, "چراغ چک"));
+    button("۱۵ • رله کولر", () -> confirmBoschActuator(15, "رله کولر"));
+    String[] boschLocked = {
+      "۲ • انژکتور ۱ دور آرام", "۳ • انژکتور ۱ موتور خاموش",
+      "۴ • انژکتور ۲ دور آرام", "۵ • انژکتور ۲ موتور خاموش",
+      "۶ • انژکتور ۳ دور آرام", "۷ • انژکتور ۳ موتور خاموش",
+      "۸ • انژکتور ۴ دور آرام", "۹ • انژکتور ۴ موتور خاموش",
+      "۱۲ • کویل ۱-۴", "۱۳ • کویل ۲-۳"
+    };
+    for (String item : boschLocked) content.addView(text("🔒 " + item, 13, false));
+    button("۱۹ پارامتر بوش — مرحله توسعه بعدی", () -> show(boschZamyadSection));
+    back(ecuSelectionSection);
+
     content = boschZamyadSection;
     content.addView(text("پروفایل مستقل زامیاد • Bosch 7.9.7.1", 18, true));
-    content.addView(text("داده‌ها از پاسخ محلی 21 01 می‌آیند. وضعیت‌های مشترک Func1 به‌صورت خام نمایش داده می‌شوند تا بیت‌های تأییدنشده به روشن/خاموش تبدیل نشوند.", 13, false));
+    content.addView(text("فریم‌ور Bosch V01 فقط اتصال، خطاها و تست‌های کنترل‌شده را پشتیبانی می‌کند. نمایش ۱۹ پارامتر هنوز در این فریم‌ور فعال نیست.", 13, false));
     boschZamyadUpdated = text("در انتظار اولین بسته پارامتر از STM32", 14, true);
     content.addView(boschZamyadUpdated);
     String[][] boschRows = {
@@ -621,8 +655,8 @@ public class MainActivity extends Activity {
     };
     for (String[] row : boschRows) boschZamyadValues.put(row[0], prideCompactRow(row[1]));
     button("اتصال به ECU بوش", () -> send("!1"));
-    button("خواندن پارامترها همین حالا", () -> send("!BREAD"));
-    button("بازگشت به انتخاب ECU", () -> show(ecuSelectionSection));
+    content.addView(text("در این نسخه فرمان BREAD اجرا نمی‌شود.",12,false));
+    button("بازگشت به عیب‌یابی بوش", () -> show(boschServiceSection));
 
     content = root;
     addBottomNavigation(appShell);
@@ -1002,6 +1036,9 @@ public class MainActivity extends Activity {
     if (prideSiemensChoice != null) {
       prideSiemensChoice.setVisibility("سایپا".equals(brand) ? View.VISIBLE : View.GONE);
     }
+    if (boschZamyadChoice != null) {
+      boschZamyadChoice.setVisibility("زامیاد".equals(brand) ? View.VISIBLE : View.GONE);
+    }
     show(ecuSelectionSection);
   }
 
@@ -1021,7 +1058,7 @@ public class MainActivity extends Activity {
     if ("بوش زامیاد 7.9.7.1".equals(ecu)) {
       diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
       requestProfileCommand("!PROFILE:BOSCH");
-      show(boschZamyadSection);
+      show(boschServiceSection);
       setStatus("پروفایل بوش زامیاد انتخاب شد؛ اتصال ECU را بزنید");
       return;
     }
@@ -1058,6 +1095,7 @@ public class MainActivity extends Activity {
   String screenKey(LinearLayout screen) {
     if (screen == prideSiemensSection) return "pride";
     if (screen == boschZamyadSection) return "boschZamyad";
+    if (screen == boschServiceSection) return "boschService";
     if (screen == dashboardSection) return "dashboard";
     if (screen == diagnosticMenu) return "diagnostic";
     if (screen == parametersMenu) return "parameters";
@@ -1079,6 +1117,7 @@ public class MainActivity extends Activity {
   LinearLayout screenFromKey(String key) {
     if ("pride".equals(key)) return prideSiemensSection;
     if ("boschZamyad".equals(key)) return boschZamyadSection;
+    if ("boschService".equals(key)) return boschServiceSection;
     if ("dashboard".equals(key)) return dashboardSection;
     if ("diagnostic".equals(key)) return diagnosticMenu;
     if ("parameters".equals(key)) return parametersMenu;
@@ -1131,6 +1170,45 @@ public class MainActivity extends Activity {
     button("بازگشت", () -> show(target));
   }
 
+  void sendBoschPair(String first, String second) {
+    new Thread(() -> {
+      try {
+        synchronized (this) {
+          if (socket == null || socket.isClosed() || out == null) {
+            setStatus("ابتدا به Wi-Fi E-MAX متصل شوید"); return;
+          }
+          out.write((first + "\n").getBytes("US-ASCII"));
+          out.flush();
+          Thread.sleep(350);
+          out.write((second + "\n").getBytes("US-ASCII"));
+          out.flush();
+        }
+        setStatus("فرمان بوش به‌ترتیب ارسال شد");
+      } catch (Exception e) {
+        setStatus("ارسال فرمان بوش ناموفق: " + e.getMessage());
+      }
+    }, "bosch-pair").start();
+  }
+
+  void confirmBoschClear() {
+    new AlertDialog.Builder(this)
+      .setTitle("پاک‌کردن خطاهای Bosch زامیاد")
+      .setMessage("موتور خاموش و سوئیچ باز باشد. پس از تأیید، فرمان آماده‌سازی 3 و سپس YES ارسال می‌شود و ECU دوباره برای بررسی خطاها خوانده خواهد شد.")
+      .setNegativeButton("انصراف", null)
+      .setPositiveButton("تأیید پاک کردن", (d, w) -> sendBoschPair("!3", "!YES"))
+      .show();
+  }
+
+  void confirmBoschActuator(int index, String name) {
+    new AlertDialog.Builder(this)
+      .setTitle("تست کوتاه: " + name)
+      .setMessage("فقط موتور خاموش، خودرو ثابت و شرایط تعمیرگاهی ایمن. آیا تست کوتاه فعال شود؟")
+      .setNegativeButton("انصراف", null)
+      .setPositiveButton("فعال‌سازی کوتاه", (d, w) -> {
+        sendBoschPair("!ARM", String.format(java.util.Locale.US, "!T%02d", index));
+      }).show();
+  }
+
   void confirmActuator(String name, char command, boolean highRisk) {
     String warning = "فقط با موتور خاموش، خودرو ثابت و محیط ایمن اجرا کنید. فرمان به ECU ارسال می‌شود و فریم‌ور V42 باید توقف خودکار ۲٫۵ ثانیه‌ای داشته باشد.";
     if (highRisk) {
@@ -1180,6 +1258,7 @@ public class MainActivity extends Activity {
     if(currentScreen == home) super.onBackPressed();
     else if(currentScreen == ecuSelectionSection) show(home);
     else if(currentScreen == diagnosticMenu) show(home);
+    else if(currentScreen == boschServiceSection) show(ecuSelectionSection);
     else if(currentScreen == prideSiemensSection) show(parametersMenu);
     else if(currentScreen == speedSection || currentScreen == emissionsSection || currentScreen == ignitionSection || currentScreen == airSection || currentScreen == fuelSection) show(parametersMenu);
     else show(home);
@@ -1368,7 +1447,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.1\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.3\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -1933,6 +2012,7 @@ public class MainActivity extends Activity {
           }
         }
         dtc.setText(b.toString());
+        if (boschFaultValues != null) boschFaultValues.setText(b.toString());
       } else if(type.equals("ack")) {
         setStatus("دریافت فرمان از اپلیکیشن: " + j.optString("command"));
       } else if(type.equals("status")) {
