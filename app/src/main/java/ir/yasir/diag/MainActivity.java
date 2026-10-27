@@ -52,7 +52,10 @@ public class MainActivity extends Activity {
   final HashMap<Integer, Boolean> vehiclePhotoLoading = new HashMap<>();
   TextView selectedBrandLabel, diagnosticSelectionLabel, prideSiemensUpdated;
   Button prideSiemensChoice;
-  LinearLayout prideSiemensSection;
+  LinearLayout prideSiemensSection, boschZamyadSection;
+  TextView boschZamyadUpdated;
+  final HashMap<String, TextView> boschZamyadValues = new HashMap<>();
+  volatile String pendingProfileCommand = "";
   final LinearLayout[] prideGroupSections = new LinearLayout[4];
   final String[] prideCurrentValues = new String[35];
   final String[] pridePendingValues = new String[35];
@@ -266,6 +269,7 @@ public class MainActivity extends Activity {
     chartSection = section("نمودارها");
     dynamicParametersSection = section("پارامترهای زنده و قابل توسعه");
     prideSiemensSection = section("ECU زیمنس پراید • ۳۵ پارامتر زنده");
+    boschZamyadSection = section("ECU بوش زامیاد 7.9.7.1 • ۱۹ پارامتر زنده");
     ecuSelectionSection = section("انتخاب ECU");
     diagnosticMenu = section("منوی عیب‌یابی");
     settingsSection = section("تنظیمات ظاهری و برنامه");
@@ -295,7 +299,11 @@ public class MainActivity extends Activity {
     quickGrid.setUseDefaultMargins(false);
     home.addView(quickGrid, new LinearLayout.LayoutParams(-1, -2));
     addQuickCard(quickGrid, "عیب‌یابی سریع", "خواندن و پاک‌کردن خطاها", "⌕", Color.rgb(0, 174, 235), () -> { selectedBrand = selectedBrand.isEmpty() ? "خودرو انتخاب‌نشده" : selectedBrand; selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
-    addQuickCard(quickGrid, "داده‌های زنده", "مشاهده پارامترهای لحظه‌ای", "▥", Color.rgb(0, 214, 133), () -> { if ("زیمنس پراید".equals(selectedEcu)) show(prideSiemensSection); else show(dashboardSection); });
+    addQuickCard(quickGrid, "داده‌های زنده", "مشاهده پارامترهای لحظه‌ای", "▥", Color.rgb(0, 214, 133), () -> {
+      if ("زیمنس پراید".equals(selectedEcu)) show(prideSiemensSection);
+      else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) show(boschZamyadSection);
+      else show(dashboardSection);
+    });
     addQuickCard(quickGrid, "تست عملگرها", "تست‌های تعمیرگاهی", "⚙", Color.rgb(255, 176, 0), () -> show(actuatorSection));
     addQuickCard(quickGrid, "اطلاعات ECU", "شناسه و پروفایل انتخابی", "▤", Color.rgb(181, 93, 255), () -> show(ecuSection));
 
@@ -326,6 +334,7 @@ public class MainActivity extends Activity {
     button("زیمنس دوگانه‌سوز", () -> chooseEcu("زیمنس دوگانه‌سوز"));
     button("ساژم (SAGEM)", () -> chooseEcu("ساژم (SAGEM)"));
     button("بوش (BOSCH)", () -> chooseEcu("بوش (BOSCH)"));
+    button("بوش زامیاد 7.9.7.1 — ۱۹ پارامتر زنده", () -> chooseEcu("بوش زامیاد 7.9.7.1"));
     button("والئو (VALEO)", () -> chooseEcu("والئو (VALEO)"));
     button("عظام", () -> chooseEcu("عظام"));
     button("SB13", () -> chooseEcu("SB13"));
@@ -341,6 +350,7 @@ public class MainActivity extends Activity {
     button("پاک کردن عیب", () -> { show(dtcSection); confirmClear(); });
     button("داشبورد زنده موتور", () -> show(dashboardSection));
     button("۳۵ پارامتر ECU زیمنس پراید", () -> show(prideSiemensSection));
+    button("۱۹ پارامتر ECU بوش زامیاد 7.9.7.1", () -> show(boschZamyadSection));
     button("پارامترها", () -> show(parametersMenu));
     button("همه پارامترهای زنده (پویا)", () -> show(dynamicParametersSection));
     button("عملگرها", () -> show(actuatorSection));
@@ -377,8 +387,8 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.1 • نوار اتصال ثابت بدون پرش",16,true));
-    content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل عملیاتی فعلی: زیمنس SIM2K‑34VR.",14,false));
+    content.addView(text("نسخه برنامه: 2.2 • پروفایل بوش زامیاد 7.9.7.1",16,true));
+    content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل‌های عملیاتی: زیمنس پراید و بوش زامیاد 7.9.7.1.",14,false));
     content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
     content.addView(text("آخرین پیام ارتباط و عیب‌یابی (جزئیات خارج از نوار ثابت بالا)", 14, true));
@@ -418,6 +428,7 @@ public class MainActivity extends Activity {
     button("اطلاعات مکش هوا", () -> show(airSection));
     button("اطلاعات تزریق سوخت", () -> show(fuelSection));
     button("ECU زیمنس پراید — ۳۵ پارامتر زنده", () -> show(prideSiemensSection));
+    button("ECU بوش زامیاد 7.9.7.1 — ۱۹ پارامتر زنده", () -> show(boschZamyadSection));
     back(home);
 
     content = speedSection;
@@ -582,6 +593,37 @@ public class MainActivity extends Activity {
     back(parametersMenu);
     showPrideGroup(0);
 
+    content = boschZamyadSection;
+    content.addView(text("پروفایل مستقل زامیاد • Bosch 7.9.7.1", 18, true));
+    content.addView(text("داده‌ها از پاسخ محلی 21 01 می‌آیند. وضعیت‌های مشترک Func1 به‌صورت خام نمایش داده می‌شوند تا بیت‌های تأییدنشده به روشن/خاموش تبدیل نشوند.", 13, false));
+    boschZamyadUpdated = text("در انتظار اولین بسته پارامتر از STM32", 14, true);
+    content.addView(boschZamyadUpdated);
+    String[][] boschRows = {
+      {"bosch_zamyad_fault_count","شمارنده خطا (خام)"},
+      {"bosch_zamyad_coolant","دمای آب"},
+      {"bosch_zamyad_intake_air","دمای هوای ورودی"},
+      {"bosch_zamyad_battery","ولتاژ باتری"},
+      {"bosch_zamyad_tps","موقعیت دریچه گاز"},
+      {"bosch_zamyad_rpm","دور موتور"},
+      {"bosch_zamyad_spark_advance","آوانس جرقه"},
+      {"bosch_zamyad_knock_state","وضعیت ناک"},
+      {"bosch_zamyad_injection_system_state","وضعیت سیستم انژکتور"},
+      {"bosch_zamyad_fuel_pump_state","وضعیت پمپ بنزین"},
+      {"bosch_zamyad_injection_state","وضعیت پاشش"},
+      {"bosch_zamyad_engine_load_state","وضعیت بار موتور"},
+      {"bosch_zamyad_air_pressure","فشار هوا"},
+      {"bosch_zamyad_injection_time","زمان پاشش"},
+      {"bosch_zamyad_target_idle_rpm","دور آرام هدف"},
+      {"bosch_zamyad_stepper_position","موقعیت استپر"},
+      {"bosch_zamyad_map","فشار منیفولد MAP"},
+      {"bosch_zamyad_coil_charge_time","زمان شارژ کویل"},
+      {"bosch_zamyad_o2_voltage","ولتاژ سنسور اکسیژن"}
+    };
+    for (String[] row : boschRows) boschZamyadValues.put(row[0], prideCompactRow(row[1]));
+    button("اتصال به ECU بوش", () -> send("!1"));
+    button("خواندن پارامترها همین حالا", () -> send("!BREAD"));
+    button("بازگشت به انتخاب ECU", () -> show(ecuSelectionSection));
+
     content = root;
     addBottomNavigation(appShell);
     applyThemeToViews(root);
@@ -594,6 +636,9 @@ public class MainActivity extends Activity {
         preferences.getString("yasir.lastBrand", "");
     selectedEcu = b != null ? b.getString("yasir.ecu", "") :
         preferences.getString("yasir.lastEcu", "");
+    if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) pendingProfileCommand = "!PROFILE:BOSCH";
+    else if ("زیمنس پراید".equals(selectedEcu) || "زیمنس SIM2K-34VR".equals(selectedEcu))
+      pendingProfileCommand = "!PROFILE:SIEMENS";
     final LinearLayout restoreScreen = screenFromKey(restoreKey);
     if (restoreScreen != null && restoreScreen != home) show(restoreScreen);
     final int savedY = b == null ? 0 : b.getInt("yasir.scroll", 0);
@@ -960,15 +1005,35 @@ public class MainActivity extends Activity {
     show(ecuSelectionSection);
   }
 
+  void requestProfileCommand(String command) {
+    pendingProfileCommand = command;
+    if (tcpLive && socket != null && !socket.isClosed()) {
+      String sendNow = pendingProfileCommand;
+      pendingProfileCommand = "";
+      send(sendNow);
+    } else {
+      setStatus("پروفایل ذخیره شد؛ پس از اتصال به E-MAX ارسال می‌شود");
+    }
+  }
+
   void chooseEcu(String ecu) {
     selectedEcu = ecu;
+    if ("بوش زامیاد 7.9.7.1".equals(ecu)) {
+      diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
+      requestProfileCommand("!PROFILE:BOSCH");
+      show(boschZamyadSection);
+      setStatus("پروفایل بوش زامیاد انتخاب شد؛ اتصال ECU را بزنید");
+      return;
+    }
     if ("زیمنس پراید".equals(ecu)) {
+      requestProfileCommand("!PROFILE:SIEMENS");
       diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
       show(prideSiemensSection);
       setStatus("ECU زیمنس پراید انتخاب شد • ۳۵ پارامتر زنده");
       return;
     }
     if ("زیمنس SIM2K-34VR".equals(ecu)) {
+      requestProfileCommand("!PROFILE:SIEMENS");
       diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
       show(diagnosticMenu);
       setStatus("پروفایل فعال انتخاب شد: " + selectedBrand + " / " + selectedEcu);
@@ -992,6 +1057,7 @@ public class MainActivity extends Activity {
 
   String screenKey(LinearLayout screen) {
     if (screen == prideSiemensSection) return "pride";
+    if (screen == boschZamyadSection) return "boschZamyad";
     if (screen == dashboardSection) return "dashboard";
     if (screen == diagnosticMenu) return "diagnostic";
     if (screen == parametersMenu) return "parameters";
@@ -1012,6 +1078,7 @@ public class MainActivity extends Activity {
 
   LinearLayout screenFromKey(String key) {
     if ("pride".equals(key)) return prideSiemensSection;
+    if ("boschZamyad".equals(key)) return boschZamyadSection;
     if ("dashboard".equals(key)) return dashboardSection;
     if ("diagnostic".equals(key)) return diagnosticMenu;
     if ("parameters".equals(key)) return parametersMenu;
@@ -1450,6 +1517,13 @@ public class MainActivity extends Activity {
           }
           updateTcpBadge(true, false);
           setStatus("TCP به E-MAX برقرار شد؛ اتصال ECU را بزنید");
+          if (!pendingProfileCommand.isEmpty()) {
+            final String profileCmd = pendingProfileCommand;
+            pendingProfileCommand = "";
+            ui.postDelayed(() -> {
+              if (running && connectionEpoch == epoch) send(profileCmd);
+            }, 180);
+          }
 
           BufferedReader reader =
               new BufferedReader(new InputStreamReader(s.getInputStream(), "UTF-8"));
@@ -1610,6 +1684,19 @@ public class MainActivity extends Activity {
                 new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
           }
         }
+        if (id.startsWith("bosch_zamyad_")) {
+          TextView boschValue = boschZamyadValues.get(id);
+          if (boschValue != null) {
+            String shown = value;
+            if (!unit.isEmpty()) shown += " " + unit;
+            if (!state.isEmpty()) shown += " • " + state;
+            boschValue.setText(shown);
+            boschValue.setTextColor(teal);
+          }
+          if (boschZamyadUpdated != null)
+            boschZamyadUpdated.setText("بوش زامیاد 7.9.7.1 • آخرین دریافت: " +
+              new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
+        }
       }
     }
 
@@ -1618,14 +1705,16 @@ public class MainActivity extends Activity {
     while (keys.hasNext()) {
       String key = keys.next();
       if ("type".equals(key) || "raw".equals(key) || "parameters".equals(key) ||
-          "injectors".equals(key) || "spark".equals(key)) continue;
+          "injectors".equals(key) || "spark".equals(key) || "profile".equals(key) ||
+          "connected".equals(key) || "cycle".equals(key)) continue;
       Object value = j.opt(key);
       if (value == null || value instanceof JSONObject || value instanceof JSONArray) continue;
       String unit = "";
       if ("rpm".equals(key)) unit = "دور/دقیقه";
       else if ("coolant".equals(key) || "intake".equals(key)) unit = "°C";
       else if ("battery".equals(key)) unit = "V";
-      else if ("map".equals(key)) unit = "kPa (تأییدنشده)";
+      else if ("map".equals(key)) unit = "bosch_zamyad_7971".equals(j.optString("profile")) ?
+          "mbar (فرمول مرجع)" : "kPa (تأییدنشده)";
       upsertDynamicParameter("json_" + key, friendlyParameterName(key), String.valueOf(value), unit, "");
     }
 
@@ -1828,7 +1917,10 @@ public class MainActivity extends Activity {
           injectorAverage.setText(average);
           dashInjection.setText(average);
         } else { injectorAverage.setText("—"); dashInjection.setText("—"); }
-        setStatus("داده زنده ECU دریافت می‌شود");
+        if ("bosch_zamyad_7971".equals(j.optString("profile")))
+          setStatus("پارامترهای زنده بوش زامیاد دریافت می‌شود");
+        else
+          setStatus("داده زنده ECU دریافت می‌شود");
       } else if(type.equals("dtc")) {
         JSONArray codes = j.optJSONArray("codes");
         StringBuilder b = new StringBuilder("تعداد خطا: " + j.optInt("count") + "\n");
