@@ -17,11 +17,11 @@ The Android app sends one of these profile commands over the existing TCP socket
 - `!PROFILE:SIEMENS\n` — select the original V49 Siemens profile.
 - `!PROFILE:BOSCH\n` — select Bosch Zamyad 7.9.7.1.
 
-Switching profiles resets the active K-Line session. Reconnect to the ECU after changing profiles.
+Switching profiles resets the active K-Line session. Reconnect to the ECU after changing profiles. The profile-selection message is sent as `!PROFILE:BOSCH\\n` or `!PROFILE:SIEMENS\\n` over the same existing TCP socket.
 
 ## Bosch commands
 
-Once Bosch is selected, the Android app sends a single ASCII character followed by newline. There is no `!` prefix, `ARM` sequence, or `Y` confirmation.
+Once Bosch is selected, the Android app uses the existing V49 phone-command framing: `!` followed by one ASCII key and newline (for example `!G\\n`). The STM32 USB serial console still accepts the raw V14.3 key. There is no `ARM` sequence, `!Txx` command, or `Y` confirmation.
 
 | Command | Function |
 |---|---|
