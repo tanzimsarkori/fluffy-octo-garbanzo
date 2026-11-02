@@ -628,10 +628,8 @@ public class MainActivity extends Activity {
     button("۴ • چراغ چک (MIL) — ۵ ثانیه", () -> sendBoschKey('4'));
     button("N • رله سیستم تهویه — ۶ ثانیه", () -> sendBoschKey('N'));
 
-    button("۶ • خواندن ۱۹ پارامتر زنده", () -> {
-      show(boschZamyadSection);
-      sendBoschKey('6');
-    });
+    button("۶ • خواندن ۱۹ پارامتر زنده", () -> sendBoschKey('6'));
+    button("نمایش جدول ۱۹ پارامتر", () -> show(boschZamyadSection));
 
     content.addView(text("گزارش دریافتی از STM32 / ESP-01", 15, true));
     boschConsole = text("در انتظار پیام دستگاه...", 12, false);
