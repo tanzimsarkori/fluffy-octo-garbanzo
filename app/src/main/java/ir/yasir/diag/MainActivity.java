@@ -1523,7 +1523,7 @@ public class MainActivity extends Activity {
             setStatus("اتصال TCP برقرار نیست؛ ابتدا اتصال Wi-Fi دستگاه را برقرار کنید");
             return;
           }
-          out.write((String.valueOf(command) + "\n").getBytes("US-ASCII"));
+          out.write(("!" + String.valueOf(command) + "\n").getBytes("US-ASCII"));
           out.flush();
         }
         setStatus("فرمان Bosch ارسال شد: " + command);
