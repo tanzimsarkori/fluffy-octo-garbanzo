@@ -396,7 +396,7 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.4 • بوش زامیاد، خطاها و ۱۵ عملگر با ایمنی بیشتر",16,true));
+    content.addView(text("نسخه برنامه: 2.5 • بوش زامیاد، خطاها و ۱۵ عملگر با ایمنی بیشتر",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل‌های عملیاتی: زیمنس پراید و بوش زامیاد 7.9.7.1.",14,false));
     content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
@@ -603,38 +603,42 @@ public class MainActivity extends Activity {
     showPrideGroup(0);
 
     content = boschServiceSection;
-    content.addView(text("Bosch 7.9.7.1 زامیاد • برنامه مستقل از زیمنس پراید", 17, true));
-    content.addView(text("نیازمند STM32 Bosch V01. برای اولین تست، خودرو ثابت، موتور خاموش، سوئیچ باز و اتصالات ایمن باشند.", 13, false));
-    button("اتصال به ECU بوش", () -> send("!1"));
-    button("خواندن کدهای خطا", () -> send("!2"));
-    boschFaultValues = field("کدهای خطای ECU");
-    button("پاک‌کردن خطا (نیازمند تأیید)", () -> confirmBoschClear());
-    content.addView(text("۱۵ عملگر استخراج‌شده از E-MAX • ۱۰ تست پرخطر فقط با تأیید دوم فعال می‌شوند", 16, true));
-    button("توقف فوری تست (Z)", () -> send("!Z"));
-    button("۱ • پمپ بنزین", () -> confirmBoschActuator(1, "پمپ بنزین"));
-    button("۱۰ • گرم‌کن اکسیژن", () -> confirmBoschActuator(10, "گرم‌کن سنسور اکسیژن"));
-    button("۱۱ • استپر", () -> confirmBoschActuator(11, "استپر موتور"));
-    button("۱۴ • چراغ چک", () -> confirmBoschActuator(14, "چراغ چک"));
-    button("۱۵ • رله کولر", () -> confirmBoschActuator(15, "رله کولر"));
-    String[] boschHighRisk = {
-      "انژکتور ۱ دور آرام", "انژکتور ۱ موتور خاموش",
-      "انژکتور ۲ دور آرام", "انژکتور ۲ موتور خاموش",
-      "انژکتور ۳ دور آرام", "انژکتور ۳ موتور خاموش",
-      "انژکتور ۴ دور آرام", "انژکتور ۴ موتور خاموش",
-      "کویل ۱-۴", "کویل ۲-۳"
-    };
-    final int[] boschHighRiskIndexes = {2,3,4,5,6,7,8,9,12,13};
-    for (int i = 0; i < boschHighRisk.length; i++) {
-      final int id = boschHighRiskIndexes[i];
-      final String label = boschHighRisk[i];
-      button("⚠ " + id + " • " + label + " (پرخطر)", () -> confirmBoschHighRiskActuator(id, label));
-    }
-    button("۱۹ پارامتر بوش — مرحله توسعه بعدی", () -> show(boschZamyadSection));
+    content.addView(text("Bosch زامیاد 7.9.7.1 • فریم‌ور ترکیبی V50", 17, true));
+    content.addView(text("اتصال Wi-Fi فعلی برنامه و ESP-01 حفظ شده است. ابتدا اتصال TCP برقرار باشد، سپس ECU بوش را متصل کنید.", 13, false));
+    button("۱ • اتصال به ECU بوش", () -> sendBoschKey('1'));
+    button("۲ • خواندن کدهای خطا", () -> sendBoschKey('2'));
+    boschFaultValues = field("گزارش خطاهای ECU بوش");
+    button("پاک‌کردن خطاها (با تأیید)", () -> confirmBoschClear());
+    button("توقف زودهنگام تست فعال (X)", () -> sendBoschKey('X'));
+    button("۰ • قطع ارتباط K-Line", () -> sendBoschKey('0'));
+
+    content.addView(text("تست مستقیم عملگرها • بدون کلید Y", 16, true));
+    content.addView(text("زمان‌بندی و خاموشی خودکار در STM32 کنترل می‌شود. شرایط ایمنی هر تست را رعایت کنید.", 13, false));
+    button("A • پمپ بنزین — ۶ ثانیه", () -> sendBoschKey('A'));
+    button("B • انژکتور ۱ — دور آرام", () -> sendBoschKey('B'));
+    button("C • انژکتور ۱ — موتور خاموش", () -> sendBoschKey('C'));
+    button("D • انژکتور ۲ — دور آرام", () -> sendBoschKey('D'));
+    button("E • انژکتور ۲ — موتور خاموش", () -> sendBoschKey('E'));
+    button("F • انژکتور ۳ — دور آرام", () -> sendBoschKey('F'));
+    button("G • انژکتور ۳ — موتور خاموش", () -> sendBoschKey('G'));
+    button("H • انژکتور ۴ — دور آرام", () -> sendBoschKey('H'));
+    button("I • انژکتور ۴ — موتور خاموش", () -> sendBoschKey('I'));
+    button("J • گرم‌کن سنسور اکسیژن — ۶ ثانیه", () -> sendBoschKey('J'));
+    button("K • استپر موتور", () -> sendBoschKey('K'));
+    button("L • کویل ۱–۴", () -> sendBoschKey('L'));
+    button("M • کویل ۲–۳", () -> sendBoschKey('M'));
+    button("۴ • تست چراغ چک (MIL)", () -> sendBoschKey('4'));
+    button("N • رله سیستم تهویه — ۶ ثانیه", () -> sendBoschKey('N'));
+
+    button("۶ • نمایش ۱۹ پارامتر زنده بوش", () -> {
+      show(boschZamyadSection);
+      sendBoschKey('6');
+    });
     back(ecuSelectionSection);
 
     content = boschZamyadSection;
     content.addView(text("پروفایل مستقل زامیاد • Bosch 7.9.7.1", 18, true));
-    content.addView(text("فریم‌ور Bosch V01 فقط اتصال، خطاها و تست‌های کنترل‌شده را پشتیبانی می‌کند. نمایش ۱۹ پارامتر هنوز در این فریم‌ور فعال نیست.", 13, false));
+    content.addView(text("۱۹ پارامتر اختصاصی Bosch Zamyad 7.9.7.1 از همان اتصال Wi-Fi دریافت می‌شوند. فرمول‌های مرجع هنوز نیازمند تطبیق با مقادیر واقعی خودرو هستند.", 13, false));
     boschZamyadUpdated = text("در انتظار اولین بسته پارامتر از STM32", 14, true);
     content.addView(boschZamyadUpdated);
     String[][] boschRows = {
@@ -659,9 +663,8 @@ public class MainActivity extends Activity {
       {"bosch_zamyad_o2_voltage","ولتاژ سنسور اکسیژن"}
     };
     for (String[] row : boschRows) boschZamyadValues.put(row[0], prideCompactRow(row[1]));
-    button("اتصال به ECU بوش", () -> send("!1"));
-    content.addView(text("در این نسخه فرمان BREAD اجرا نمی‌شود.",12,false));
-    button("بازگشت به عیب‌یابی بوش", () -> show(boschServiceSection));
+    button("۶ • درخواست مجدد ۱۹ پارامتر", () -> sendBoschKey('6'));
+    button("بازگشت به تست‌های بوش", () -> show(boschServiceSection));
 
     content = root;
     addBottomNavigation(appShell);
@@ -1175,82 +1178,13 @@ public class MainActivity extends Activity {
     button("بازگشت", () -> show(target));
   }
 
-  void sendBoschPair(String first, String second) {
-    new Thread(() -> {
-      try {
-        synchronized (this) {
-          if (socket == null || socket.isClosed() || out == null) {
-            setStatus("ابتدا به Wi-Fi E-MAX متصل شوید"); return;
-          }
-          out.write((first + "\n").getBytes("US-ASCII"));
-          out.flush();
-          Thread.sleep(350);
-          out.write((second + "\n").getBytes("US-ASCII"));
-          out.flush();
-        }
-        setStatus("فرمان بوش به‌ترتیب ارسال شد");
-      } catch (Exception e) {
-        setStatus("ارسال فرمان بوش ناموفق: " + e.getMessage());
-      }
-    }, "bosch-pair").start();
-  }
-
   void confirmBoschClear() {
     new AlertDialog.Builder(this)
       .setTitle("پاک‌کردن خطاهای Bosch زامیاد")
-      .setMessage("موتور خاموش و سوئیچ باز باشد. پس از تأیید، فرمان آماده‌سازی 3 و سپس YES ارسال می‌شود و ECU دوباره برای بررسی خطاها خوانده خواهد شد.")
+      .setMessage("موتور خاموش و سوئیچ باز باشد. پس از تأیید، فرمان ۳ به فریم‌ور V50 ارسال می‌شود.")
       .setNegativeButton("انصراف", null)
-      .setPositiveButton("تأیید پاک کردن", (d, w) -> sendBoschPair("!3", "!YES"))
+      .setPositiveButton("تأیید پاک کردن", (d, w) -> sendBoschKey('3'))
       .show();
-  }
-
-  void confirmBoschActuator(int index, String name) {
-    new AlertDialog.Builder(this)
-      .setTitle("تست کوتاه: " + name)
-      .setMessage("فقط موتور خاموش، خودرو ثابت و شرایط تعمیرگاهی ایمن. آیا تست کوتاه فعال شود؟")
-      .setNegativeButton("انصراف", null)
-      .setPositiveButton("فعال‌سازی کوتاه", (d, w) -> {
-        sendBoschPair("!ARM", String.format(java.util.Locale.US, "!T%02d", index));
-      }).show();
-  }
-
-
-  void confirmBoschHighRiskActuator(int index, String name) {
-    new AlertDialog.Builder(this)
-      .setTitle("هشدار: تست پرخطر بوش - " + name)
-      .setMessage("این فرمان ممکن است باعث پاشش سوخت یا جرقه شود. "
-        + "فقط تعمیرکار متخصص با تجهیزات ایمن و مطابق دستورالعمل مخصوص موتور زامیاد مجاز به تست است. "
-        + "محدودیت زمانی نرم‌افزاری جایگزین ایمنی سخت‌افزاری نیست.")
-      .setNegativeButton("انصراف", null)
-      .setPositiveButton("تأیید مرحله اول", (d,w) ->
-        new AlertDialog.Builder(this)
-          .setTitle("تأیید دوم تست " + name)
-          .setMessage("اگر شرایط ایمن تست این عملگر را بررسی کرده‌ای، اجرای کوتاه را تأیید کن.")
-          .setNegativeButton("انصراف", null)
-          .setPositiveButton("شروع تست پرخطر", (d2,w2) -> sendBoschHighRisk(index))
-          .show()
-      ).show();
-  }
-
-  void sendBoschHighRisk(int index) {
-    new Thread(() -> {
-      try {
-        synchronized (this) {
-          if (out == null || socket == null || socket.isClosed()) {
-            setStatus("اتصال TCP برقرار نیست"); return;
-          }
-          out.write("!HIGH RISK YES\n".getBytes("US-ASCII"));
-          out.flush(); Thread.sleep(160);
-          out.write("!ARM\n".getBytes("US-ASCII"));
-          out.flush(); Thread.sleep(160);
-          out.write(String.format(java.util.Locale.US, "!T%02d\n", index).getBytes("US-ASCII"));
-          out.flush();
-        }
-        setStatus("تست پرخطر بوش " + index + " ارسال شد؛ توقف خودکار را بررسی کن");
-      } catch (Exception e) {
-        setStatus("فرمان بوش ناموفق: " + e.getMessage());
-      }
-    }, "yasir-bosch-highrisk").start();
   }
 
   void confirmActuator(String name, char command, boolean highRisk) {
@@ -1303,6 +1237,7 @@ public class MainActivity extends Activity {
     else if(currentScreen == ecuSelectionSection) show(home);
     else if(currentScreen == diagnosticMenu) show(home);
     else if(currentScreen == boschServiceSection) show(ecuSelectionSection);
+    else if(currentScreen == boschZamyadSection) show(boschServiceSection);
     else if(currentScreen == prideSiemensSection) show(parametersMenu);
     else if(currentScreen == speedSection || currentScreen == emissionsSection || currentScreen == ignitionSection || currentScreen == airSection || currentScreen == fuelSection) show(parametersMenu);
     else show(home);
@@ -1491,7 +1426,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.4\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.5\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -1571,6 +1506,32 @@ public class MainActivity extends Activity {
           !message.contentEquals(lastDiagnosticStatus.getText()))
         lastDiagnosticStatus.setText(message);
     });
+  }
+
+  // Bosch V50 commands are raw single ASCII keys; Siemens keeps the existing ! command protocol.
+  void sendBoschKey(char key) {
+    if (key >= 'a' && key <= 'n') key = (char)(key - 'a' + 'A');
+    final char command = key;
+    if ("012346ABCDEFGHIJKLMNX?".indexOf(command) < 0) {
+      setStatus("فرمان نامعتبر برای Bosch 7.9.7.1");
+      return;
+    }
+    new Thread(() -> {
+      try {
+        synchronized (this) {
+          if (out == null || socket == null || socket.isClosed()) {
+            setStatus("اتصال TCP برقرار نیست؛ ابتدا اتصال Wi-Fi دستگاه را برقرار کنید");
+            return;
+          }
+          out.write(("!" + String.valueOf(command) + "\n").getBytes("US-ASCII"));
+          out.flush();
+        }
+        setStatus("فرمان Bosch ارسال شد: " + command);
+      } catch (Exception e) {
+        setStatus("ارسال فرمان Bosch ناموفق: " + e.toString());
+        closeSocket();
+      }
+    }, "yasir-bosch-v50-command").start();
   }
 
   void send(String command) {
@@ -2011,9 +1972,14 @@ public class MainActivity extends Activity {
       }
       String type = j.optString("type");
       if(type.equals("parameters")) {
-        prideFrames++;
         updateDynamicParameters(j);
-        setStatus("بسته پارامترهای زیمنس پراید دریافت شد: " + prideFrames);
+        if ("bosch_zamyad_7971".equals(j.optString("profile"))) {
+          if (boschZamyadUpdated != null) boschZamyadUpdated.setText("بوش زامیاد • دریافت تازه: " + new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
+          setStatus("۱۹ پارامتر زنده بوش زامیاد دریافت شد");
+        } else {
+          prideFrames++;
+          setStatus("بسته پارامترهای زیمنس پراید دریافت شد: " + prideFrames);
+        }
       } else if(type.equals("telemetry")) {
         telemetryFrames++;
         updateDynamicParameters(j);
@@ -2046,13 +2012,23 @@ public class MainActivity extends Activity {
           setStatus("داده زنده ECU دریافت می‌شود");
       } else if(type.equals("dtc")) {
         JSONArray codes = j.optJSONArray("codes");
+        boolean isBoschDtc = "bosch_zamyad_7971".equals(j.optString("profile"));
         StringBuilder b = new StringBuilder("تعداد خطا: " + j.optInt("count") + "\n");
         if(codes != null)for(int i=0;i<codes.length();i++) {
           JSONObject c = codes.optJSONObject(i);
           if(c!=null) {
-            String code = standardCode(c.optString("code"));
-            b.append(code).append("  |  وضعیت خام: ").append(c.optString("status")).append("\n");
-            b.append(DtcDescriptions.describe(code)).append("\n\n");
+            String rawCode = c.optString("code");
+            String code = isBoschDtc ? rawCode : standardCode(rawCode);
+            b.append(isBoschDtc ? "کد خام Bosch: " : "").append(code)
+             .append("  |  وضعیت: ").append(c.optString("status")).append("\n");
+            if (isBoschDtc && "0118E1".equalsIgnoreCase(rawCode))
+              b.append("خطای سنسور دمای مایع خنک‌کننده (CTS) • تطبیق تجربی\n\n");
+            else if (isBoschDtc && "0105E4".equalsIgnoreCase(rawCode))
+              b.append("خطای سنسور فشار منیفولد (MAP) • تطبیق تجربی\n\n");
+            else if (isBoschDtc)
+              b.append("توضیح قطعی برای این کد خام ثبت نشده است.\n\n");
+            else
+              b.append(DtcDescriptions.describe(code)).append("\n\n");
           }
         }
         dtc.setText(b.toString());
@@ -2086,6 +2062,40 @@ public class MainActivity extends Activity {
           setStatus("فرمان توقف همه تست‌ها توسط ECU پذیرفته شد");
         } else if (message.equals("ACTUATOR_ALL_OFF_SENT")) {
           setStatus("فرمان توقف همه تست‌ها ارسال شد؛ تأیید ECU در انتظار است");
+        } else if (message.equals("BOSCH_ECU_CONNECTED")) {
+          setStatus("اتصال ECU بوش زامیاد برقرار شد؛ دریافت ۱۹ پارامتر زنده آغاز می‌شود");
+        } else if (message.equals("BOSCH_ECU_CONNECTION_FAILED")) {
+          setStatus("اتصال ECU بوش تأیید نشد؛ وضعیت K-Line و سوئیچ را بررسی کنید");
+        } else if (message.equals("BOSCH_PARAMETER_READ_FAILED")) {
+          setStatus("خواندن پارامترهای بوش ناموفق بود؛ ارتباط ECU را بررسی کنید");
+        } else if (message.equals("BOSCH_DTC_CLEAR_NOT_CONFIRMED")) {
+          setStatus("پاک‌کردن خطاهای بوش توسط ECU تأیید نشد");
+        } else if (message.equals("BOSCH_DTC_CLEAR_ACCEPTED_RECHECKING")) {
+          setStatus("فرمان پاک‌کردن خطاهای بوش پذیرفته شد؛ در حال خواندن مجدد خطاها");
+        } else if (message.equals("BOSCH_DTC_READ_FINISHED_RAW_CODES")) {
+          setStatus("کدهای خطای خام بوش دریافت شدند؛ تطبیق نام کدها محدود است");
+        } else if (message.equals("BOSCH_ACTUATOR_ON_ACCEPTED")) {
+          setStatus("ECU فرمان روشن‌کردن عملگر بوش را پذیرفت؛ حرکت فیزیکی را بررسی کنید");
+        } else if (message.equals("BOSCH_ACTUATOR_OFF_ACCEPTED")) {
+          setStatus("ECU فرمان خاموش‌کردن عملگر بوش را پذیرفت");
+        } else if (message.equals("BOSCH_ACTUATOR_EARLY_STOP_REQUESTED")) {
+          setStatus("درخواست توقف زودهنگام ثبت شد؛ فرمان خاموشی ارسال می‌شود");
+        } else if (message.equals("BOSCH_ACTUATOR_ON_NOT_CONFIRMED")) {
+          setStatus("فرمان روشن‌کردن عملگر بوش تأیید نشد");
+        } else if (message.equals("BOSCH_ACTUATOR_OFF_NOT_CONFIRMED") || message.equals("BOSCH_ACTUATOR_OFF_NOT_CONFIRMED_SWITCH_IGNITION_OFF")) {
+          setStatus("هشدار: خاموشی عملگر بوش تأیید نشد؛ سوئیچ را خاموش و بررسی کنید");
+        } else if (message.equals("BOSCH_ACTUATOR_TEST_FINISHED_OFF_CONFIRMED")) {
+          setStatus("تست عملگر بوش تمام شد و فرمان خاموشی تأیید شد");
+        } else if (message.equals("BOSCH_ACTUATOR_ON_NOT_CONFIRMED_OFF_CONFIRMED")) {
+          setStatus("فرمان روشن‌شدن عملگر تأیید نشد؛ فرمان خاموشی تأیید شد");
+        } else if (message.equals("BOSCH_MIL_ON_NOT_CONFIRMED_OFF_CONFIRMED")) {
+          setStatus("روشن‌شدن چراغ چک تأیید نشد؛ فرمان خاموشی تأیید شد");
+        } else if (message.equals("BOSCH_MIL_TEST_FINISHED_OFF_CONFIRMED")) {
+          setStatus("تست چراغ چک بوش پایان یافت؛ خاموشی تأیید شد");
+        } else if (message.equals("PROFILE_BOSCH_SELECTED")) {
+          setStatus("پروفایل Bosch Zamyad 7.9.7.1 فعال شد");
+        } else if (message.equals("PROFILE_SIEMENS_SELECTED")) {
+          setStatus("پروفایل زیمنس فعال شد");
         } else if (message.equals("ACTUATOR_COMMAND_SENT_WAITING_ECU")) {
           setStatus("فرمان عملگر ارسال شد؛ منتظر پاسخ ECU...");
         } else {
