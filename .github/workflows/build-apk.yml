@@ -1,13 +1,18 @@
 name: Build YASIR DIAG APK
+
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feature/bosch-v14-3-android
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -25,26 +30,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.4'
-      - name: Package V35 lab firmware ZIP
-        run: |
-          mkdir -p dist
-          cp firmware/lab/YASIR_KLINE_V35_LAB_READONLY.ino dist/YASIR_KLINE_V35_LIVE_PARAMS_CMD2.ino
-          printf '%s\n' \
-            'YASIR K-LINE V35 LAB - command 2' \
-            '1. Open the .ino in Arduino IDE.' \
-            '2. Select the STM32F103C8T6 board settings used by your working firmware.' \
-            '3. Set Serial Monitor to 115200 baud.' \
-            '4. Send 1 to connect, then 2 to show compact single-byte and two-byte formula candidate rows.' \
-            'This is read-only lab firmware; keep the proven V42 production firmware as a backup.' \
-            > dist/README.txt
-          cd dist && zip -j ../YASIR_KLINE_V35_LIVE_PARAMS_CMD2.zip YASIR_KLINE_V35_LIVE_PARAMS_CMD2.ino README.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: YASIR-KLINE-V35-LIVE-PARAMS-CMD2-ZIP
-          path: YASIR_KLINE_V35_LIVE_PARAMS_CMD2.zip
-      - name: Build APK
+      - name: Build Yasir Diag 2.5 APK
         run: gradle --no-daemon assembleDebug
-      - uses: actions/upload-artifact@v4
+      - name: Upload Yasir Diag 2.5 APK
+        uses: actions/upload-artifact@v4
         with:
-          name: YASIR-DIAG-debug-apk
+          name: YASIR-DIAG-v2.5-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
