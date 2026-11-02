@@ -2070,6 +2070,16 @@ public class MainActivity extends Activity {
           setStatus("خواندن پارامترهای بوش ناموفق بود؛ ارتباط ECU را بررسی کنید");
         } else if (message.equals("BOSCH_DTC_CLEAR_NOT_CONFIRMED")) {
           setStatus("پاک‌کردن خطاهای بوش توسط ECU تأیید نشد");
+        } else if (message.equals("BOSCH_DTC_CLEAR_ACCEPTED_RECHECKING")) {
+          setStatus("فرمان پاک‌کردن خطاهای بوش پذیرفته شد؛ در حال خواندن مجدد خطاها");
+        } else if (message.equals("BOSCH_DTC_READ_FINISHED_RAW_CODES")) {
+          setStatus("کدهای خطای خام بوش دریافت شدند؛ تطبیق نام کدها محدود است");
+        } else if (message.equals("BOSCH_ACTUATOR_ON_ACCEPTED")) {
+          setStatus("ECU فرمان روشن‌کردن عملگر بوش را پذیرفت؛ حرکت فیزیکی را بررسی کنید");
+        } else if (message.equals("BOSCH_ACTUATOR_OFF_ACCEPTED")) {
+          setStatus("ECU فرمان خاموش‌کردن عملگر بوش را پذیرفت");
+        } else if (message.equals("BOSCH_ACTUATOR_EARLY_STOP_REQUESTED")) {
+          setStatus("درخواست توقف زودهنگام ثبت شد؛ فرمان خاموشی ارسال می‌شود");
         } else if (message.equals("BOSCH_ACTUATOR_ON_NOT_CONFIRMED")) {
           setStatus("فرمان روشن‌کردن عملگر بوش تأیید نشد");
         } else if (message.equals("BOSCH_ACTUATOR_OFF_NOT_CONFIRMED") || message.equals("BOSCH_ACTUATOR_OFF_NOT_CONFIRMED_SWITCH_IGNITION_OFF")) {
