@@ -2012,13 +2012,23 @@ public class MainActivity extends Activity {
           setStatus("داده زنده ECU دریافت می‌شود");
       } else if(type.equals("dtc")) {
         JSONArray codes = j.optJSONArray("codes");
+        boolean isBoschDtc = "bosch_zamyad_7971".equals(j.optString("profile"));
         StringBuilder b = new StringBuilder("تعداد خطا: " + j.optInt("count") + "\n");
         if(codes != null)for(int i=0;i<codes.length();i++) {
           JSONObject c = codes.optJSONObject(i);
           if(c!=null) {
-            String code = standardCode(c.optString("code"));
-            b.append(code).append("  |  وضعیت خام: ").append(c.optString("status")).append("\n");
-            b.append(DtcDescriptions.describe(code)).append("\n\n");
+            String rawCode = c.optString("code");
+            String code = isBoschDtc ? rawCode : standardCode(rawCode);
+            b.append(isBoschDtc ? "کد خام Bosch: " : "").append(code)
+             .append("  |  وضعیت: ").append(c.optString("status")).append("\n");
+            if (isBoschDtc && "0118E1".equalsIgnoreCase(rawCode))
+              b.append("خطای سنسور دمای مایع خنک‌کننده (CTS) • تطبیق تجربی\n\n");
+            else if (isBoschDtc && "0105E4".equalsIgnoreCase(rawCode))
+              b.append("خطای سنسور فشار منیفولد (MAP) • تطبیق تجربی\n\n");
+            else if (isBoschDtc)
+              b.append("توضیح قطعی برای این کد خام ثبت نشده است.\n\n");
+            else
+              b.append(DtcDescriptions.describe(code)).append("\n\n");
           }
         }
         dtc.setText(b.toString());
@@ -2066,6 +2076,10 @@ public class MainActivity extends Activity {
           setStatus("هشدار: خاموشی عملگر بوش تأیید نشد؛ سوئیچ را خاموش و بررسی کنید");
         } else if (message.equals("BOSCH_ACTUATOR_TEST_FINISHED_OFF_CONFIRMED")) {
           setStatus("تست عملگر بوش تمام شد و فرمان خاموشی تأیید شد");
+        } else if (message.equals("BOSCH_ACTUATOR_ON_NOT_CONFIRMED_OFF_CONFIRMED")) {
+          setStatus("فرمان روشن‌شدن عملگر تأیید نشد؛ فرمان خاموشی تأیید شد");
+        } else if (message.equals("BOSCH_MIL_ON_NOT_CONFIRMED_OFF_CONFIRMED")) {
+          setStatus("روشن‌شدن چراغ چک تأیید نشد؛ فرمان خاموشی تأیید شد");
         } else if (message.equals("BOSCH_MIL_TEST_FINISHED_OFF_CONFIRMED")) {
           setStatus("تست چراغ چک بوش پایان یافت؛ خاموشی تأیید شد");
         } else if (message.equals("PROFILE_BOSCH_SELECTED")) {
