@@ -1,52 +1,84 @@
-# Yasir Diag Android 2.5 — Bosch Zamyad V14.3 protocol
+# Bosch Zamyad 7.9.7.1 integration — V50 / Yasir Diag 2.5
 
-## Connection
+## Architecture
 
-- Android app opens a TCP connection to the E-MAX ESP-01 access point at `192.168.4.1:3333`.
-- The ESP-01 bridge must forward TCP payload bytes unchanged to the STM32 command UART and forward STM32 output lines back to the TCP client.
-- Bosch V14.3 commands are single ASCII characters followed by a newline. Do not prepend `!`, `!ARM`, `!Txx`, or a profile command.
-- The existing Siemens/legacy app command path remains unchanged and continues using its prefixed protocol.
+The dual-profile STM32 firmware is based on the proven Siemens V49 firmware and retains its existing hardware links:
 
-## Bosch command map
+- K-Line ECU: STM32 `Serial3`, PB10/PB11, 10400 baud.
+- Existing ESP-01 link: STM32 `Serial2`, PA2/PA3, 115200 baud.
+- Android TCP endpoint: existing app connection to `192.168.4.1:3333`.
 
-| TCP command | Function |
+No ESP-01 firmware change is required for this integration, provided the existing bridge continues forwarding newline-terminated TCP bytes unchanged to/from STM32 Serial2 as it already does for the working Siemens profile.
+
+## ECU profile selection
+
+The Android app sends one of these profile commands over the existing TCP socket:
+
+- `!PROFILE:SIEMENS\n` — select the original V49 Siemens profile.
+- `!PROFILE:BOSCH\n` — select Bosch Zamyad 7.9.7.1.
+
+Switching profiles resets the active K-Line session. Reconnect to the ECU after changing profiles.
+
+## Bosch commands
+
+Once Bosch is selected, the Android app sends a single ASCII character followed by newline. There is no `!` prefix, `ARM` sequence, or `Y` confirmation.
+
+| Command | Function |
 |---|---|
-| `1\n` | Connect / initialize ECU |
-| `2\n` | Read DTCs |
-| `3\n` | Clear DTCs immediately (the Android app shows a confirmation dialog first) |
-| `4\n` | Dedicated MIL lamp test |
-| `6\n` | Request the 19 live parameters |
-| `A\n` | Fuel pump |
-| `B\n` | Injector 1 — idle |
-| `C\n` | Injector 1 — engine off |
-| `D\n` | Injector 2 — idle |
-| `E\n` | Injector 2 — engine off |
-| `F\n` | Injector 3 — idle |
-| `G\n` | Injector 3 — engine off |
-| `H\n` | Injector 4 — idle |
-| `I\n` | Injector 4 — engine off |
-| `J\n` | Oxygen sensor heater |
-| `K\n` | Stepper motor |
-| `L\n` | Ignition coil 1–4 |
-| `M\n` | Ignition coil 2–3 |
-| `N\n` | Ventilation relay |
-| `X\n` | Stop the currently timed actuator test early |
-| `0\n` | Disconnect K-Line session |
-| `?\n` | Print the STM32 main menu |
+| `1` | Fast-init Bosch ECU at physical address 0x11 |
+| `2` | Read DTCs |
+| `3` | Clear DTCs, verify positive response, then re-read |
+| `4` | Dedicated MIL test, 5-second maximum, automatic OFF |
+| `6` | One-shot read of 19 live parameters |
+| `A` | Fuel pump — 6 seconds |
+| `B` | Injector 1 — idle test |
+| `C` | Injector 1 — engine-off test |
+| `D` | Injector 2 — idle test |
+| `E` | Injector 2 — engine-off test |
+| `F` | Injector 3 — idle test |
+| `G` | Injector 3 — engine-off test |
+| `H` | Injector 4 — idle test |
+| `I` | Injector 4 — engine-off test |
+| `J` | Oxygen sensor heater — 6 seconds |
+| `K` | Stepper motor |
+| `L` | Ignition coil 1–4 |
+| `M` | Ignition coil 2–3 |
+| `N` | Ventilation relay — 6 seconds |
+| `X` | Request early stop during a timed test |
+| `0` | Disconnect Bosch K-Line session |
 
-## Timings
+The firmware also polls the 19-row Bosch parameter block every 1600 ms while the Bosch session is active. Siemens adaptive 35-parameter ACK pacing is unchanged and runs only in the Siemens profile.
 
-The Android app does not send actuator durations. V14.3 owns the timing and automatic OFF behavior:
-- Fuel pump, oxygen heater, and ventilation relay: 6 seconds.
-- Injectors: 1.2-second test windows.
-- Stepper motor: 1.5 seconds.
-- Ignition coils: 0.7 seconds.
-- MIL: dedicated 5-second test.
+## Live-data JSON contract
 
-## Response display
+The firmware emits the existing app-compatible `type=parameters` JSON envelope with `profile=bosch_zamyad_7971`. Parameter IDs match the app's existing Bosch table:
 
-The app accepts the existing JSON status/telemetry messages and also displays plain-text lines from STM32 in the Bosch diagnostic console. A line saying that ON was accepted is not proof of physical actuator movement. Check that OFF is confirmed after every test.
+- `bosch_zamyad_fault_count`
+- `bosch_zamyad_coolant`
+- `bosch_zamyad_intake_air`
+- `bosch_zamyad_battery`
+- `bosch_zamyad_tps`
+- `bosch_zamyad_rpm`
+- `bosch_zamyad_spark_advance`
+- `bosch_zamyad_knock_state`
+- `bosch_zamyad_injection_system_state`
+- `bosch_zamyad_fuel_pump_state`
+- `bosch_zamyad_injection_state`
+- `bosch_zamyad_engine_load_state`
+- `bosch_zamyad_air_pressure`
+- `bosch_zamyad_injection_time`
+- `bosch_zamyad_target_idle_rpm`
+- `bosch_zamyad_stepper_position`
+- `bosch_zamyad_map`
+- `bosch_zamyad_coil_charge_time`
+- `bosch_zamyad_o2_voltage`
 
-## Important integration dependency
+The five state rows sourced from byte d[14] remain raw because bit meanings/polarities are not verified. Other formulas are reference formulas from the extracted E-MAX Zamyad 7.9.7.1 profile and should be compared with live tester readings before being treated as calibrated measurements.
 
-This repository contains the Android app. It does not include the ESP-01 bridge firmware. Before vehicle testing, verify that the ESP-01 TCP server is a transparent UART bridge at 115200 baud (or the baud configured on the STM32 command UART), forwards newline-terminated commands without adding/removing characters, and returns STM32 serial output. If the ESP-01 firmware parses only the old exclamation-prefixed commands or emits only JSON, that bridge firmware must also be updated.
+## Safety and validation
+
+- Injector and coil test windows remain short; the six-second duration is limited to the fuel pump, oxygen heater, and ventilation relay.
+- Each actuator test attempts OFF even when ON was not confirmed.
+- An OFF-not-confirmed status is a stop condition: switch ignition OFF and inspect before further testing.
+- A positive ECU response confirms command acceptance, not physical actuator movement.
+- Static C++ syntax and app-source structure checks were performed. The exact STM32 Arduino core build, Android APK build, and vehicle hardware validation remain to be run on the target setup.
