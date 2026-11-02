@@ -305,7 +305,7 @@ public class MainActivity extends Activity {
     addQuickCard(quickGrid, "عیب‌یابی سریع", "خواندن و پاک‌کردن خطاها", "⌕", Color.rgb(0, 174, 235), () -> { if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) { show(boschServiceSection); return; } selectedBrand = selectedBrand.isEmpty() ? "خودرو انتخاب‌نشده" : selectedBrand; if (selectedEcu.isEmpty()) selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
     addQuickCard(quickGrid, "داده‌های زنده", "مشاهده پارامترهای لحظه‌ای", "▥", Color.rgb(0, 214, 133), () -> {
       if ("زیمنس پراید".equals(selectedEcu)) show(prideSiemensSection);
-      else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) show(boschServiceSection);
+      else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) show(boschZamyadSection);
       else show(dashboardSection);
     });
     addQuickCard(quickGrid, "تست عملگرها", "تست‌های تعمیرگاهی", "⚙", Color.rgb(255, 176, 0), () -> show("بوش زامیاد 7.9.7.1".equals(selectedEcu) ? boschServiceSection : actuatorSection));
@@ -362,7 +362,7 @@ public class MainActivity extends Activity {
     button("عیب‌یابی Bosch زامیاد 7.9.7.1", () -> show(boschServiceSection));
     button("پارامترها", () -> show(parametersMenu));
     button("همه پارامترهای زنده (پویا)", () -> show(dynamicParametersSection));
-    button("عملگرها", () -> show(actuatorSection));
+    button("عملگرها", () -> show("بوش زامیاد 7.9.7.1".equals(selectedEcu) ? boschServiceSection : actuatorSection));
     button("ریست کردن مقادیر سازگار یافته", () -> show(resetSection));
     button("نمودار", () -> show(chartSection));
     button("قطع اتصال", () -> disconnect());
@@ -1242,6 +1242,7 @@ public class MainActivity extends Activity {
     else if(currentScreen == ecuSelectionSection) show(home);
     else if(currentScreen == diagnosticMenu) show(home);
     else if(currentScreen == boschServiceSection) show(ecuSelectionSection);
+    else if(currentScreen == boschZamyadSection) show(boschServiceSection);
     else if(currentScreen == prideSiemensSection) show(parametersMenu);
     else if(currentScreen == speedSection || currentScreen == emissionsSection || currentScreen == ignitionSection || currentScreen == airSection || currentScreen == fuelSection) show(parametersMenu);
     else show(home);
