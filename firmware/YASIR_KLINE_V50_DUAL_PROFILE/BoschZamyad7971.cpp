@@ -764,16 +764,15 @@ static void sendBoschDtcJson() {
   Serial2.println(F("]}"));
 }
 static bool sendBoschParameterRow(const char *id, const char *name, float value,
-                                  uint8_t decimals, const char *unit, const char *status,
-                                  bool &first) {
-  if (!first) Serial2.print(',');
-  first = false;
-  Serial2.print(F("{\"id\":\"")); Serial2.print(id);
+                                  uint8_t decimals, const char *unit, const char *status) {
+  // Keep each JSON line small for ESP-01 UART/TCP bridges with short line buffers.
+  Serial2.print(F("{\"type\":\"parameters\",\"profile\":\"bosch_zamyad_7971\",\"connected\":true,\"parameters\":[{\"id\":\""));
+  Serial2.print(id);
   Serial2.print(F("\",\"name\":\"")); Serial2.print(name);
   Serial2.print(F("\",\"value\":")); Serial2.print(value, decimals);
   Serial2.print(F(",\"unit\":\"")); Serial2.print(unit);
   Serial2.print(F("\",\"status\":\"")); Serial2.print(status);
-  Serial2.print(F("\"}"));
+  Serial2.println(F("\"}]}"));
   return true;
 }
 static bool sendBoschParameters(const uint8_t *d, size_t count) {
@@ -781,30 +780,27 @@ static bool sendBoschParameters(const uint8_t *d, size_t count) {
     sendBoschStatus(F("BOSCH_PARAMETER_READ_FAILED"));
     return false;
   }
-  Serial2.print(F("{\"type\":\"parameters\",\"profile\":\"bosch_zamyad_7971\",\"connected\":true,\"parameters\":["));
-  bool first = true;
   const char *ref = "فرمول مرجع E-MAX؛ با دیاگ خودرو تطبیق شود";
   const char *raw = "خام؛ رمزگشایی بیت‌ها تأیید نشده";
-  sendBoschParameterRow("bosch_zamyad_fault_count","شمارنده خطا",d[0],0,"",raw,first);
-  sendBoschParameterRow("bosch_zamyad_coolant","دمای آب",d[2]*0.738f-48.0f,1,"°C",ref,first);
-  sendBoschParameterRow("bosch_zamyad_intake_air","دمای هوای ورودی",d[3]*0.738f-48.0f,1,"°C",ref,first);
-  sendBoschParameterRow("bosch_zamyad_battery","ولتاژ باتری",d[4]*0.073f,2,"V",ref,first);
-  sendBoschParameterRow("bosch_zamyad_tps","موقعیت دریچه گاز",BoschZamyad7971::wordLE(d,7)*0.0243717f,2,"%",ref,first);
-  sendBoschParameterRow("bosch_zamyad_rpm","دور موتور",BoschZamyad7971::wordLE(d,9)*0.25f,0,"rpm",ref,first);
-  sendBoschParameterRow("bosch_zamyad_spark_advance","آوانس جرقه",BoschZamyad7971::signed8(d[13])*0.75f,2,"°",ref,first);
-  sendBoschParameterRow("bosch_zamyad_knock_state","وضعیت ناک",d[14],0,"raw",raw,first);
-  sendBoschParameterRow("bosch_zamyad_injection_system_state","وضعیت سیستم تزریق",d[14],0,"raw",raw,first);
-  sendBoschParameterRow("bosch_zamyad_fuel_pump_state","وضعیت پمپ سوخت",d[14],0,"raw",raw,first);
-  sendBoschParameterRow("bosch_zamyad_injection_state","وضعیت تزریق",d[14],0,"raw",raw,first);
-  sendBoschParameterRow("bosch_zamyad_engine_load_state","وضعیت بار موتور",d[14],0,"raw",raw,first);
-  sendBoschParameterRow("bosch_zamyad_air_pressure","فشار هوا",BoschZamyad7971::wordLE(d,20)*0.062f,2,"",ref,first);
-  sendBoschParameterRow("bosch_zamyad_injection_time","زمان پاشش",(BoschZamyad7971::wordLE(d,22)%7500)*0.0133f,3,"",ref,first);
-  sendBoschParameterRow("bosch_zamyad_target_idle_rpm","دور آرام هدف",d[24]*10.0f,0,"rpm",ref,first);
-  sendBoschParameterRow("bosch_zamyad_stepper_position","موقعیت استپر",d[25],0,"step",ref,first);
-  sendBoschParameterRow("bosch_zamyad_map","فشار منیفولد",BoschZamyad7971::wordLE(d,50)*0.039f,2,"mbar",ref,first);
-  sendBoschParameterRow("bosch_zamyad_coil_charge_time","زمان شارژ کویل",BoschZamyad7971::wordLE(d,52)*0.001f,3,"ms",ref,first);
-  sendBoschParameterRow("bosch_zamyad_o2_voltage","ولتاژ سنسور اکسیژن",d[28]<=153 ? 249.0f+d[28]*4.89f : 750.7f+d[28]*4.88f,1,"mV",ref,first);
-  Serial2.println(F("]}"));
+  sendBoschParameterRow("bosch_zamyad_fault_count","شمارنده خطا",d[0],0,"",raw);
+  sendBoschParameterRow("bosch_zamyad_coolant","دمای آب",d[2]*0.738f-48.0f,1,"°C",ref);
+  sendBoschParameterRow("bosch_zamyad_intake_air","دمای هوای ورودی",d[3]*0.738f-48.0f,1,"°C",ref);
+  sendBoschParameterRow("bosch_zamyad_battery","ولتاژ باتری",d[4]*0.073f,2,"V",ref);
+  sendBoschParameterRow("bosch_zamyad_tps","موقعیت دریچه گاز",BoschZamyad7971::wordLE(d,7)*0.0243717f,2,"%",ref);
+  sendBoschParameterRow("bosch_zamyad_rpm","دور موتور",BoschZamyad7971::wordLE(d,9)*0.25f,0,"rpm",ref);
+  sendBoschParameterRow("bosch_zamyad_spark_advance","آوانس جرقه",BoschZamyad7971::signed8(d[13])*0.75f,2,"°",ref);
+  sendBoschParameterRow("bosch_zamyad_knock_state","وضعیت ناک",d[14],0,"raw",raw);
+  sendBoschParameterRow("bosch_zamyad_injection_system_state","وضعیت سیستم تزریق",d[14],0,"raw",raw);
+  sendBoschParameterRow("bosch_zamyad_fuel_pump_state","وضعیت پمپ بنزین",d[14],0,"raw",raw);
+  sendBoschParameterRow("bosch_zamyad_injection_state","وضعیت پاشش",d[14],0,"raw",raw);
+  sendBoschParameterRow("bosch_zamyad_engine_load_state","وضعیت بار موتور",d[14],0,"raw",raw);
+  sendBoschParameterRow("bosch_zamyad_air_pressure","فشار هوا",BoschZamyad7971::wordLE(d,20)*0.062f,2,"",ref);
+  sendBoschParameterRow("bosch_zamyad_injection_time","زمان پاشش",(BoschZamyad7971::wordLE(d,22)%7500)*0.0133f,3,"",ref);
+  sendBoschParameterRow("bosch_zamyad_target_idle_rpm","دور آرام هدف",d[24]*10.0f,0,"rpm",ref);
+  sendBoschParameterRow("bosch_zamyad_stepper_position","موقعیت استپر",d[25],0,"step",ref);
+  sendBoschParameterRow("bosch_zamyad_map","فشار منیفولد",BoschZamyad7971::wordLE(d,50)*0.039f,2,"mbar",ref);
+  sendBoschParameterRow("bosch_zamyad_coil_charge_time","زمان شارژ کویل",BoschZamyad7971::wordLE(d,52)*0.001f,3,"ms",ref);
+  sendBoschParameterRow("bosch_zamyad_o2_voltage","ولتاژ سنسور اکسیژن",d[28]<=153 ? 249.0f+d[28]*4.89f : 750.7f+d[28]*4.88f,1,"mV",ref);
   return true;
 }
 static bool readLiveParameters() {
