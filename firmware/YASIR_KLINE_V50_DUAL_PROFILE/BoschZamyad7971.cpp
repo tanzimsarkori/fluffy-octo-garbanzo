@@ -395,6 +395,7 @@ static void readDTCs() {
   Serial3.write(tx, sizeof(tx));
   Serial3.flush();
   if (!waitForService(0x58, tx, sizeof(tx), 2600)) {
+    sendBoschStatus(F("BOSCH_DTC_READ_FAILED"));
     Serial.println(F("No confirmed DTC response. No fault count inferred."));
     Serial.println(F("If session expired, press 1 then 2 again."));
     return;
@@ -848,4 +849,3 @@ void poll() {
 }
 
 
-} // namespace BoschFirmware
