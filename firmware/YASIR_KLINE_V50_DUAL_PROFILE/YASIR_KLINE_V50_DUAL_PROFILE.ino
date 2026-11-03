@@ -854,7 +854,10 @@ void menu() {
   Serial.println("Use Android ECU selection for Bosch Zamyad 7.9.7.1 or Siemens profile.");
 }
 void selectEcuProfile(EcuProfile profile) {
-  BoschFirmware::disconnect();
+  if (activeEcuProfile == PROFILE_BOSCH) BoschFirmware::disconnect();
+  else Serial3.end();
+  pinMode(PB10, OUTPUT);
+  digitalWrite(PB10, HIGH);
   connected = false;
   livePanel = false;
   csvMode = false;
@@ -910,7 +913,6 @@ void handleCommand(char c) {
 void setup() {
   Serial.begin(115200);       // USB-TTL diagnostic console on PA9/PA10
   Serial2.begin(ESP_BAUD);    // ESP-01 UART on PA2/PA3
-  Serial3.begin(K_BAUD);      // K-Line on PB10/PB11
   BoschFirmware::initialize();
   delay(1200);
   menu();
@@ -975,5 +977,3 @@ void loop() {
     uint8_t d[93];
     if (fetchBlock(d)) sendWebTelemetry(d);
     else sendWebStatus("READ_FAILED");
-  }
-}
