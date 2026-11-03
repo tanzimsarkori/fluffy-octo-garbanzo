@@ -2,83 +2,48 @@
 
 ## Architecture
 
-The dual-profile STM32 firmware is based on the proven Siemens V49 firmware and retains its existing hardware links:
+The dual-profile firmware is based on the Siemens V47 sketch supplied with the project and keeps the existing links:
 
-- K-Line ECU: STM32 `Serial3`, PB10/PB11, 10400 baud.
-- Existing ESP-01 link: STM32 `Serial2`, PA2/PA3, 115200 baud.
-- Android TCP endpoint: existing app connection to `192.168.4.1:3333`.
+- K-Line: STM32 `Serial3`, PB10/PB11, 10400 baud.
+- ESP-01: STM32 `Serial2`, PA2/PA3, 115200 baud.
+- Android TCP endpoint: `192.168.4.1:3333`.
 
-No ESP-01 firmware change is required for this integration, provided the existing bridge continues forwarding newline-terminated TCP bytes unchanged to/from STM32 Serial2 as it already does for the working Siemens profile.
+No ESP-01 firmware change is required if the current bridge forwards newline-terminated TCP messages unchanged to and from STM32 Serial2.
+
+The combined sketch is in `firmware/YASIR_KLINE_V50_DUAL_PROFILE/`. Open `YASIR_KLINE_V50_DUAL_PROFILE.ino` in the Arduino IDE; keep the adjacent `.cpp` and `.h` files in the sketch folder.
 
 ## ECU profile selection
 
-The Android app sends one of these profile commands over the existing TCP socket:
+The Android app sends one of these commands over the existing TCP socket:
 
-- `!PROFILE:SIEMENS\n` — select the original V49 Siemens profile.
+- `!PROFILE:SIEMENS\n` — select the Siemens profile.
 - `!PROFILE:BOSCH\n` — select Bosch Zamyad 7.9.7.1.
 
-Switching profiles resets the active K-Line session. Reconnect to the ECU after changing profiles. The profile-selection message is sent as `!PROFILE:BOSCH\\n` or `!PROFILE:SIEMENS\\n` over the same existing TCP socket.
+Changing profiles resets the K-Line session. Reconnect to the ECU after switching.
 
 ## Bosch commands
 
-Once Bosch is selected, the Android app uses the existing V49 phone-command framing: `!` followed by one ASCII key and newline (for example `!G\\n`). The STM32 USB serial console still accepts the raw V14.3 key. There is no `ARM` sequence, `!Txx` command, or `Y` confirmation.
+After selecting Bosch, Android sends `!` followed by one ASCII key and a newline:
 
 | Command | Function |
 |---|---|
-| `1` | Fast-init Bosch ECU at physical address 0x11 |
+| `1` | Connect to Bosch at physical address 0x11 |
 | `2` | Read DTCs |
-| `3` | Clear DTCs, verify positive response, then re-read |
-| `4` | Dedicated MIL test, 5-second maximum, automatic OFF |
-| `6` | One-shot read of 19 live parameters |
-| `A` | Fuel pump — 6 seconds |
-| `B` | Injector 1 — idle test |
-| `C` | Injector 1 — engine-off test |
-| `D` | Injector 2 — idle test |
-| `E` | Injector 2 — engine-off test |
-| `F` | Injector 3 — idle test |
-| `G` | Injector 3 — engine-off test |
-| `H` | Injector 4 — idle test |
-| `I` | Injector 4 — engine-off test |
-| `J` | Oxygen sensor heater — 6 seconds |
-| `K` | Stepper motor |
-| `L` | Ignition coil 1–4 |
-| `M` | Ignition coil 2–3 |
-| `N` | Ventilation relay — 6 seconds |
-| `X` | Request early stop during a timed test |
-| `0` | Disconnect Bosch K-Line session |
+| `3` | Clear DTCs after app confirmation, then reread |
+| `4` | MIL test, up to five seconds, automatic OFF |
+| `6` | Read 19 live parameters |
+| `A`–`N` | Run the selected actuator test |
+| `X` | Stop a timed test early |
+| `0` | Disconnect the Bosch K-Line session |
 
-The firmware also polls the 19-row Bosch parameter block every 1600 ms while the Bosch session is active. Siemens adaptive 35-parameter ACK pacing is unchanged and runs only in the Siemens profile.
+Siemens retains the existing V47 commands and Wi-Fi link.
 
-## Live-data JSON contract
+## Live data and limitations
 
-The firmware emits the existing app-compatible `type=parameters` JSON envelope with `profile=bosch_zamyad_7971`. Parameter IDs match the app's existing Bosch table:
+Bosch live data uses the app's existing `type=parameters` JSON contract with profile `bosch_zamyad_7971`; the firmware polls every 1600 ms. The five status rows sourced from d[14] remain raw because their bit meanings are not verified. Other values use the extracted E-MAX Zamyad 7.9.7.1 reference formulas and need comparison with live scan-tool readings before being treated as calibrated measurements.
 
-- `bosch_zamyad_fault_count`
-- `bosch_zamyad_coolant`
-- `bosch_zamyad_intake_air`
-- `bosch_zamyad_battery`
-- `bosch_zamyad_tps`
-- `bosch_zamyad_rpm`
-- `bosch_zamyad_spark_advance`
-- `bosch_zamyad_knock_state`
-- `bosch_zamyad_injection_system_state`
-- `bosch_zamyad_fuel_pump_state`
-- `bosch_zamyad_injection_state`
-- `bosch_zamyad_engine_load_state`
-- `bosch_zamyad_air_pressure`
-- `bosch_zamyad_injection_time`
-- `bosch_zamyad_target_idle_rpm`
-- `bosch_zamyad_stepper_position`
-- `bosch_zamyad_map`
-- `bosch_zamyad_coil_charge_time`
-- `bosch_zamyad_o2_voltage`
+Actuator commands apply specifically to Bosch Zamyad 7.9.7.1. Each timed test attempts OFF afterward. If OFF is not confirmed, switch ignition off and inspect before continuing. A positive ECU response confirms command acceptance, not physical actuator movement.
 
-The five state rows sourced from byte d[14] remain raw because bit meanings/polarities are not verified. Other formulas are reference formulas from the extracted E-MAX Zamyad 7.9.7.1 profile and should be compared with live tester readings before being treated as calibrated measurements.
+## Validation status
 
-## Safety and validation
-
-- Injector and coil test windows remain short; the six-second duration is limited to the fuel pump, oxygen heater, and ventilation relay.
-- Each actuator test attempts OFF even when ON was not confirmed.
-- An OFF-not-confirmed status is a stop condition: switch ignition OFF and inspect before further testing.
-- A positive ECU response confirms command acceptance, not physical actuator movement.
-- Static C++ syntax and app-source structure checks were performed. The exact STM32 Arduino core build, Android APK build, and vehicle hardware validation remain to be run on the target setup.
+No STM32 build, Android APK build, or vehicle test is claimed. Validate parameter readings against a scan tool before relying on Bosch conversions or operating actuators.
