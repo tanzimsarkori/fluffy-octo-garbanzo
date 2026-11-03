@@ -1745,13 +1745,38 @@ public class MainActivity extends Activity {
     }
   }
 
+  String normalizeBoschParameterId(String id) {
+    switch (id) {
+      case "bosch_01_fault_counter": return "bosch_zamyad_fault_count";
+      case "bosch_02_coolant": return "bosch_zamyad_coolant";
+      case "bosch_03_intake_air": return "bosch_zamyad_intake_air";
+      case "bosch_04_battery": return "bosch_zamyad_battery";
+      case "bosch_05_throttle": return "bosch_zamyad_tps";
+      case "bosch_06_engine_rpm": return "bosch_zamyad_rpm";
+      case "bosch_07_spark_advance": return "bosch_zamyad_spark_advance";
+      case "bosch_08_knock_state": return "bosch_zamyad_knock_state";
+      case "bosch_09_injection_system_state": return "bosch_zamyad_injection_system_state";
+      case "bosch_10_fuel_pump_state": return "bosch_zamyad_fuel_pump_state";
+      case "bosch_11_injection_state": return "bosch_zamyad_injection_state";
+      case "bosch_12_engine_load_state": return "bosch_zamyad_engine_load_state";
+      case "bosch_13_air_pressure": return "bosch_zamyad_air_pressure";
+      case "bosch_14_injection_time": return "bosch_zamyad_injection_time";
+      case "bosch_15_target_idle_rpm": return "bosch_zamyad_target_idle_rpm";
+      case "bosch_16_stepper_position": return "bosch_zamyad_stepper_position";
+      case "bosch_17_manifold_map": return "bosch_zamyad_map";
+      case "bosch_18_coil_charge_time": return "bosch_zamyad_coil_charge_time";
+      case "bosch_19_oxygen_sensor": return "bosch_zamyad_o2_voltage";
+      default: return id;
+    }
+  }
+
   void updateDynamicParameters(JSONObject j) {
     JSONArray params = j.optJSONArray("parameters");
     if (params != null) {
       for (int i = 0; i < params.length(); i++) {
         JSONObject p = params.optJSONObject(i);
         if (p == null) continue;
-        String id = p.optString("id", p.optString("key", "param_" + i));
+        String id = normalizeBoschParameterId(p.optString("id", p.optString("key", "param_" + i)));
         String name = p.optString("name", prideFriendlyName(id));
         Object rawValue = p.opt("value");
         String value = rawValue == null || rawValue == JSONObject.NULL ? "—" : String.valueOf(rawValue);
