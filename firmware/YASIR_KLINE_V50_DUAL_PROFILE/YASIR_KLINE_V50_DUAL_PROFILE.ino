@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <string.h>
 #include "BoschZamyad7971.h"
 
 // YASIR K-LINE V50 DUAL PROFILE - STM32duino Maple STM32F1 core
