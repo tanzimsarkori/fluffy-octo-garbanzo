@@ -844,4 +844,4 @@ void poll() {
   }
 }
 
-
+} // namespace BoschFirmware
