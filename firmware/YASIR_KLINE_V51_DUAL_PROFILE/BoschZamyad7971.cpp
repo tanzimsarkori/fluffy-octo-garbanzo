@@ -776,6 +776,7 @@ static bool sendBoschParameterRow(const char *id, const char *name,
   Serial2.print(F("\",\"value\":")); Serial2.print(value, decimals);
   Serial2.print(F(",\"unit\":\"")); Serial2.print(unit);
   Serial2.println(F("\"}]}"));
+  delay(35);  // Let the ESP-01 bridge forward each line before the next one.
   return true;
 }
 static bool sendBoschParameters(const uint8_t *d, size_t count) {
