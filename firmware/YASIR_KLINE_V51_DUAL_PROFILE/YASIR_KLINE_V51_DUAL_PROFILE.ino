@@ -922,8 +922,13 @@ void handleCommand(char c) {
 }
 
 void selectEcuProfile(EcuProfile profile) {
-  if (activeEcuProfile == PROFILE_BOSCH) BoschFirmware::disconnect();
-  else Serial3.end();
+  if (activeEcuProfile == PROFILE_BOSCH) {
+    BoschFirmware::disconnect();
+  } else {
+    // Do not abandon a Siemens test before its all-off command is sent.
+    if (actuatorActive && connected) stopActuators();
+    Serial3.end();
+  }
   pinMode(PB10, OUTPUT);
   digitalWrite(PB10, HIGH);
   connected = false;
