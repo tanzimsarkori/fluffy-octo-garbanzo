@@ -81,7 +81,7 @@ static uint8_t checksum8(const uint8_t *p, size_t n) {
   for (size_t i = 0; i < n; ++i) s = (uint8_t)(s + p[i]);
   return s;
 }
-static void hexByte(uint8_t x) {
+void boschHexByte(uint8_t x) {
   if (x < 16) Serial.print('0');
   Serial.print(x, HEX);
 }
@@ -89,7 +89,7 @@ static void dumpHex(const char *label, const uint8_t *p, size_t n) {
   Serial.print(label);
   for (size_t i = 0; i < n; ++i) {
     Serial.print(' ');
-    hexByte(p[i]);
+    boschHexByte(p[i]);
   }
   Serial.println();
 }
@@ -159,9 +159,9 @@ static bool waitForService(uint8_t expected,
             if (svc == 0x7F && n >= si + 4) {
               sawNrc = true;
               Serial.print(F("NEGATIVE RESPONSE to service 0x"));
-              hexByte(stream[si+1]);
+              boschHexByte(stream[si+1]);
               Serial.print(F("; NRC=0x"));
-              hexByte(stream[si+2]);
+              boschHexByte(stream[si+2]);
               Serial.println();
             }
             // The E-MAX Bosch Zamyad Init code also explicitly accepts 61 03.
@@ -255,7 +255,7 @@ static void fastInit(uint8_t target) {
   stopKline();
   lastAddr = target;
   Serial.println();
-  Serial.print(F("FAST INIT 25/25 ms; target=0x")); hexByte(target); Serial.println();
+  Serial.print(F("FAST INIT 25/25 ms; target=0x")); boschHexByte(target); Serial.println();
   pinMode(PB10, OUTPUT);
   digitalWrite(PB10, HIGH); delay(320);
   digitalWrite(PB10, LOW); delay(25);
@@ -278,7 +278,7 @@ static void slow5BaudInit(uint8_t target) {
   stopKline();
   lastAddr = target;
   Serial.println();
-  Serial.print(F("5-BAUD INIT (200ms/bit) address 0x"));hexByte(target);Serial.println();
+  Serial.print(F("5-BAUD INIT (200ms/bit) address 0x"));boschHexByte(target);Serial.println();
   pinMode(PB10, OUTPUT);
   digitalWrite(PB10, HIGH); delay(350);
   digitalWrite(PB10, LOW); delay(200); // start bit
@@ -305,7 +305,7 @@ static void slow5BaudInit(uint8_t target) {
   }
   const uint8_t invKey2 = (uint8_t)~initial[2];
   delay(30);
-  Serial.print(F("TX inverted KEY2: ")); hexByte(invKey2); Serial.println();
+  Serial.print(F("TX inverted KEY2: ")); boschHexByte(invKey2); Serial.println();
   Serial3.write(invKey2); Serial3.flush();
   uint8_t ack[12]; uint8_t ackN = 0;
   const uint32_t t1 = millis();
@@ -328,7 +328,7 @@ static void slow5BaudInit(uint8_t target) {
 
 static void localIdentifierRead(uint8_t id) {
   Serial.println();
-  Serial.print(F("READ DATA BY LOCAL ID 0x")); hexByte(id); Serial.println();
+  Serial.print(F("READ DATA BY LOCAL ID 0x")); boschHexByte(id); Serial.println();
   if (!kwpSession) {
     Serial.println(F("No established session yet. Connect with 1 first."));
     return;
@@ -341,7 +341,7 @@ static void localIdentifierRead(uint8_t id) {
     const uint8_t si = serviceAt(lastFrame);
     if (lastFrameLen > si+2) {
       const uint8_t returnedId = lastFrame[si+1];
-      Serial.print(F("RESPONSE LOCAL ID: 0x")); hexByte(returnedId); Serial.println();
+      Serial.print(F("RESPONSE LOCAL ID: 0x")); boschHexByte(returnedId); Serial.println();
       if (returnedId != id) {
         Serial.println(F("WARNING: response is 61 but Local ID does not match."));
         return;
