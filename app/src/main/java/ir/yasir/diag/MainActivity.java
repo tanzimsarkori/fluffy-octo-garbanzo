@@ -1312,6 +1312,30 @@ public class MainActivity extends Activity {
     return s;
   }
 
+  // Bosch Zamyad reports three raw bytes. The first two bytes match the
+  // standard P-code encoding for known captures; keep the full raw record too
+  // and label this mapping as generic until verified against a Zamyad reference.
+  String boschStandardCode(String raw) {
+    if (raw == null) return "";
+    String s = raw.trim().toUpperCase(java.util.Locale.US);
+    if (s.matches("[0-9A-F]{6}"))
+      return standardCode(s.substring(0, 2) + " " + s.substring(2, 4));
+    return s;
+  }
+
+  String boschDtcDescription(String code) {
+    switch (code) {
+      case "P0105": return "مدار سنسور فشار منیفولد MAP • توضیح عمومی OBD-II";
+      case "P0107": return "مدار سنسور فشار منیفولد MAP: سیگنال ولتاژ پایین • توضیح عمومی OBD-II";
+      case "P0117": return "مدار سنسور دمای مایع خنک‌کننده: سیگنال ولتاژ پایین • توضیح عمومی OBD-II";
+      case "P0118": return "مدار سنسور دمای مایع خنک‌کننده: سیگنال ولتاژ بالا • توضیح عمومی OBD-II";
+      case "P0300": return "احتراق ناقص تصادفی یا در چند سیلندر • توضیح عمومی OBD-II";
+      case "P0304": return "احتراق ناقص در سیلندر شمارهٔ ۴ • توضیح عمومی OBD-II";
+      case "P0509": return "مدار کنترل هوای دور آرام: سیگنال بالا • توضیح عمومی OBD-II";
+      default: return "برای این کد، توضیح عمومی در برنامه ثبت نشده است.";
+    }
+  }
+
   void button(String title,Runnable r) {
     Button b = new Button(this);
     b.setText(title);
@@ -2018,17 +2042,17 @@ public class MainActivity extends Activity {
           JSONObject c = codes.optJSONObject(i);
           if(c!=null) {
             String rawCode = c.optString("code");
-            String code = isBoschDtc ? rawCode : standardCode(rawCode);
-            b.append(isBoschDtc ? "کد خام Bosch: " : "").append(code)
-             .append("  |  وضعیت: ").append(c.optString("status")).append("\n");
-            if (isBoschDtc && "0118E1".equalsIgnoreCase(rawCode))
-              b.append("خطای سنسور دمای مایع خنک‌کننده (CTS) • تطبیق تجربی\n\n");
-            else if (isBoschDtc && "0105E4".equalsIgnoreCase(rawCode))
-              b.append("خطای سنسور فشار منیفولد (MAP) • تطبیق تجربی\n\n");
-            else if (isBoschDtc)
-              b.append("توضیح قطعی برای این کد خام ثبت نشده است.\n\n");
-            else
-              b.append(DtcDescriptions.describe(code)).append("\n\n");
+            String code = isBoschDtc ? boschStandardCode(rawCode) : standardCode(rawCode);
+            if (isBoschDtc) {
+              b.append("کد عمومی متناظر: ").append(code)
+               .append("  |  کد خام Bosch: ").append(rawCode)
+               .append("  |  وضعیت: ").append(c.optString("status")).append("\n");
+              b.append(boschDtcDescription(code)).append("\n");
+              b.append("این تطبیق از دو بایت اول است و برای ECU بوش زامیاد باید با مرجع خودرو تأیید شود.\n\n");
+            } else {
+              b.append(code).append("  |  وضعیت: ").append(c.optString("status")).append("\n")
+               .append(DtcDescriptions.describe(code)).append("\n\n");
+            }
           }
         }
         dtc.setText(b.toString());
