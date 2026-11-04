@@ -603,7 +603,7 @@ public class MainActivity extends Activity {
     showPrideGroup(0);
 
     content = boschServiceSection;
-    content.addView(text("Bosch زامیاد 7.9.7.1 • فریم‌ور ترکیبی V50", 17, true));
+    content.addView(text("Bosch زامیاد 7.9.7.1 • فریم‌ور ترکیبی V51", 17, true));
     content.addView(text("اتصال Wi-Fi فعلی برنامه و ESP-01 حفظ شده است. ابتدا اتصال TCP برقرار باشد، سپس ECU بوش را متصل کنید.", 13, false));
     button("۱ • اتصال به ECU بوش", () -> sendBoschKey('1'));
     button("۲ • خواندن کدهای خطا", () -> sendBoschKey('2'));
@@ -1508,7 +1508,7 @@ public class MainActivity extends Activity {
     });
   }
 
-  // Bosch V50 commands are raw single ASCII keys; Siemens keeps the existing ! command protocol.
+  // Bosch V51 commands are raw single ASCII keys; Siemens keeps the existing ! command protocol.
   void sendBoschKey(char key) {
     if (key >= 'a' && key <= 'n') key = (char)(key - 'a' + 'A');
     final char command = key;
@@ -1531,7 +1531,7 @@ public class MainActivity extends Activity {
         setStatus("ارسال فرمان Bosch ناموفق: " + e.toString());
         closeSocket();
       }
-    }, "yasir-bosch-v50-command").start();
+    }, "yasir-bosch-v51-command").start();
   }
 
   void send(String command) {

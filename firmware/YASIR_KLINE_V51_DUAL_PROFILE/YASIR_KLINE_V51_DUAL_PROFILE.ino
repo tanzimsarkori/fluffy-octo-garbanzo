@@ -2,7 +2,7 @@
 #include <string.h>
 #include "BoschZamyad7971.h"
 
-// YASIR K-LINE V50 DUAL PROFILE - STM32duino Maple STM32F1 core
+// YASIR K-LINE V51 DUAL PROFILE - STM32duino Maple STM32F1 core
 
 // Serial: PA9 TX / PA10 RX, 115200
 
@@ -12,6 +12,21 @@ const uint32_t RESPONSE_TIMEOUT_MS = 1100;
 // ESP-01 UART: STM32 PA2 (USART2 TX) -> ESP RX, STM32 PA3 (USART2 RX) <- ESP TX
 const uint32_t ESP_BAUD = 115200;
 uint32_t lastWebTelemetry = 0;
+// Reliability-first adaptive live mode. The confirmed-working V47 pacing is
+// the baseline. Faster intervals require repeated whole-cycle ACKs from the
+// Android app; missing/incomplete feedback immediately returns to baseline.
+const uint32_t BASELINE_PERIOD_MS = 1600UL;
+const uint32_t MIN_ADAPTIVE_PERIOD_MS = 1000UL;
+const uint32_t ACK_WAIT_LIMIT_MS = 1500UL;
+uint32_t adaptivePeriodMs = BASELINE_PERIOD_MS;
+uint8_t fullCycleAckStreak = 0;
+uint8_t readFailuresInARow = 0;
+bool adaptiveMode = true;
+bool waitingPrideAck = false;
+uint16_t ackExpectedCycle = 0;
+uint32_t lastPridePacketSentAt = 0;
+uint32_t successfulPrideAcks = 0;
+uint32_t incompletePrideAcks = 0;
 bool espCommandArmed = false;
 char espLine[32];
 uint8_t espLineLen = 0;
@@ -829,7 +844,7 @@ void handleActuatorCommand(char c) {
 }
 
 void menu() {
-  Serial.println("\n=== YASIR K-LINE V47 - COMPACT ESP STREAM ===");
+  Serial.println("\n=== YASIR K-LINE V51 - DUAL PROFILE (SIEMENS + BOSCH) ===");
   Serial.println("1 = CONNECT ECU");
   Serial.println("2 = READ DTC");
   Serial.println("3 = CLEAR DTC AND RECHECK (ONLY IF INTENDED)");
@@ -849,36 +864,31 @@ void menu() {
   Serial.println("9 = STOP LIVE PANEL OR CSV");
   Serial.println("T = ACTUATOR TEST MENU (EXTERNAL SIM2K-34VR IDS)");
   Serial.println("X = ARM ONE ACTUATOR TEST | Z = ALL-OFF");
-  Serial.println("V47: original V34 panel unchanged; 35 E-MAX Pride values APPENDED to serial panel.");
+  Serial.println("Siemens: V49 reliable UART pacing; adaptive speed only after 35/35 ACK.");
+  Serial.println("I = LOCK STABLE 1600ms | F = ADAPTIVE 1600->1000ms on 35/35");
+  Serial.println("Siemens V49 panels, DTC, actuators, and 35 E-MAX conversions remain available.");
   Serial.println("MAP formula was commented out in source; TPS is not identified.");
   Serial.println("NOTE: 0/A ARE READ-ONLY; 3 CLEARS FAULT CODES.");
-  Serial.println("Use Android ECU selection for Bosch Zamyad 7.9.7.1 or Siemens profile.");
 }
-void selectEcuProfile(EcuProfile profile) {
-  if (activeEcuProfile == PROFILE_BOSCH) BoschFirmware::disconnect();
-  else Serial3.end();
-  pinMode(PB10, OUTPUT);
-  digitalWrite(PB10, HIGH);
-  connected = false;
-  livePanel = false;
-  csvMode = false;
-  actuatorActive = false;
-  actuatorArmed = false;
-  baselineReady = false;
-  previousReady = false;
-  activeEcuProfile = profile;
-  if (profile == PROFILE_BOSCH) {
-    Serial.println(F("ACTIVE ECU PROFILE: BOSCH ZAMYAD 7.9.7.1"));
-    sendWebStatus("PROFILE_BOSCH_SELECTED");
-  } else {
-    Serial.println(F("ACTIVE ECU PROFILE: SIEMENS"));
-    sendWebStatus("PROFILE_SIEMENS_SELECTED");
-  }
-}
-
 void handleCommand(char c) {
   if (activeEcuProfile == PROFILE_BOSCH) { BoschFirmware::handleKey(c); return; }
   if (c == '\r' || c == '\n' || c == ' ' || c == '\t') return;
+  if (c == 'I' || c == 'i') {
+    adaptiveMode = false;
+    adaptivePeriodMs = BASELINE_PERIOD_MS;
+    fullCycleAckStreak = 0;
+    Serial.println("LIVE: RELIABLE STABLE 1600ms locked");
+    sendWebStatus("LIVE_STABLE_1600");
+    return;
+  }
+  if (c == 'F' || c == 'f') {
+    adaptiveMode = true;
+    adaptivePeriodMs = BASELINE_PERIOD_MS;
+    fullCycleAckStreak = 0;
+    Serial.println("LIVE: ADAPTIVE 1600ms baseline, accelerates after confirmed full cycles");
+    sendWebStatus("LIVE_ADAPTIVE_ENABLED");
+    return;
+  }
   if (c == 'E' || c == 'e') {
     emaxPrideProfile = true;
     Serial.println("E-MAX SIEMENS PRIDE PARAMETER PROFILE ENABLED");
@@ -911,9 +921,37 @@ void handleCommand(char c) {
   else handleActuatorCommand(c);
 }
 
+void selectEcuProfile(EcuProfile profile) {
+  if (activeEcuProfile == PROFILE_BOSCH) BoschFirmware::disconnect();
+  else Serial3.end();
+  pinMode(PB10, OUTPUT);
+  digitalWrite(PB10, HIGH);
+  connected = false;
+  livePanel = false;
+  csvMode = false;
+  actuatorActive = false;
+  actuatorArmed = false;
+  baselineReady = false;
+  previousReady = false;
+  waitingPrideAck = false;
+  fullCycleAckStreak = 0;
+  adaptivePeriodMs = BASELINE_PERIOD_MS;
+  readFailuresInARow = 0;
+  activeEcuProfile = profile;
+  lastWebTelemetry = millis();
+  if (profile == PROFILE_BOSCH) {
+    Serial.println(F("ACTIVE ECU PROFILE: BOSCH ZAMYAD 7.9.7.1"));
+    sendWebStatus("PROFILE_BOSCH_SELECTED");
+  } else {
+    Serial.println(F("ACTIVE ECU PROFILE: SIEMENS"));
+    sendWebStatus("PROFILE_SIEMENS_SELECTED");
+  }
+}
+
 void setup() {
   Serial.begin(115200);       // USB-TTL diagnostic console on PA9/PA10
   Serial2.begin(ESP_BAUD);    // ESP-01 UART on PA2/PA3
+  Serial3.begin(K_BAUD);      // K-Line on PB10/PB11
   BoschFirmware::initialize();
   delay(1200);
   menu();
@@ -921,37 +959,85 @@ void setup() {
 }
 void processEspLine() {
   espLine[espLineLen] = 0;
+
   if (strcmp(espLine, "!PROFILE:BOSCH") == 0) {
     selectEcuProfile(PROFILE_BOSCH);
     Serial2.println(F("{\"type\":\"ack\",\"command\":\"PROFILE:BOSCH\"}"));
-  } else if (strcmp(espLine, "!PROFILE:SIEMENS") == 0) {
+    espLineLen = 0;
+    return;
+  }
+  if (strcmp(espLine, "!PROFILE:SIEMENS") == 0) {
     selectEcuProfile(PROFILE_SIEMENS);
     Serial2.println(F("{\"type\":\"ack\",\"command\":\"PROFILE:SIEMENS\"}"));
-  } else {
-    char command = 0;
-    if (espLineLen == 1 && (espLine[0] == '1' || espLine[0] == '2' || espLine[0] == '3'))
-      command = espLine[0];
-    if (espLineLen == 2 && espLine[0] == '!') {
-      char key = espLine[1];
-      if (activeEcuProfile == PROFILE_BOSCH) {
-        if (strchr("012346ABCDEFGHIJKLMNX?", key)) command = key;
-      } else if (strchr("EDV1234567890ABCTXZL HPMQGKUSJW NORY", key) && key != ' ')
-        command = key;
+    espLineLen = 0;
+    return;
+  }
+
+  // Android reports the number of distinct parameters received in each Siemens cycle.
+  // Bosch uses a separate fixed-rate stream and does not participate in this ACK.
+  if (activeEcuProfile == PROFILE_SIEMENS && espLineLen > 3 && espLine[0] == '@') {
+    char *afterCycle = 0;
+    unsigned long cycleNumber = strtoul(espLine + 1, &afterCycle, 10);
+    if (afterCycle && *afterCycle == ',') {
+      char *afterCount = 0;
+      unsigned long receivedCount = strtoul(afterCycle + 1, &afterCount, 10);
+      if (afterCount && *afterCount == 0 && receivedCount <= 35 &&
+          cycleNumber <= 65535UL && waitingPrideAck &&
+          (uint16_t)cycleNumber == ackExpectedCycle) {
+        waitingPrideAck = false;
+        if (receivedCount == 35) {
+          ++successfulPrideAcks;
+          if (fullCycleAckStreak < 255) ++fullCycleAckStreak;
+          if (adaptiveMode && fullCycleAckStreak >= 4 &&
+              adaptivePeriodMs > MIN_ADAPTIVE_PERIOD_MS) {
+            adaptivePeriodMs = (adaptivePeriodMs > MIN_ADAPTIVE_PERIOD_MS + 150UL)
+                                 ? adaptivePeriodMs - 150UL : MIN_ADAPTIVE_PERIOD_MS;
+            fullCycleAckStreak = 0;
+            Serial.print("LIVE: 35/35 complete, next period ms: ");
+            Serial.println(adaptivePeriodMs);
+            sendWebStatus("LIVE_SPEED_ADAPTED");
+          }
+        } else {
+          ++incompletePrideAcks;
+          fullCycleAckStreak = 0;
+          adaptivePeriodMs = BASELINE_PERIOD_MS;
+          Serial.print("LIVE: incomplete 35-parameter cycle: ");
+          Serial.println(receivedCount);
+          sendWebStatus("LIVE_INCOMPLETE_STABLE_FALLBACK");
+        }
+        espLineLen = 0;
+        return;
+      }
     }
-    if (command) {
-      Serial.print(F("PHONE COMMAND RECEIVED: ")); Serial.println(command);
-      Serial2.print(F("{\"type\":\"ack\",\"command\":\""));
-      Serial2.print(command);
-      Serial2.println(F("\"}"));
-      lastEspCommand = millis();
-      handleCommand(command);
-      lastWebTelemetry = millis();
-    } else if (espLineLen) {
-      Serial.print(F("ESP IGNORED LINE: ")); Serial.println(espLine);
+    espLineLen = 0;
+    return;
+  }
+
+  char command = 0;
+  if (espLineLen == 1 && (espLine[0] == '1' || espLine[0] == '2' || espLine[0] == '3'))
+    command = espLine[0];
+  if (espLineLen == 2 && espLine[0] == '!') {
+    char key = espLine[1];
+    if (activeEcuProfile == PROFILE_BOSCH) {
+      if (strchr("012346ABCDEFGHIJKLMNX?", key)) command = key;
+    } else if (strchr("EDVIF1234567890ABCTXZLHPMQGKUSJWNORY", key)) {
+      command = key;
     }
+  }
+  if (command) {
+    Serial.print("PHONE COMMAND RECEIVED: "); Serial.println(command);
+    Serial2.print("{\"type\":\"ack\",\"command\":\"");
+    Serial2.print(command);
+    Serial2.println("\"}");
+    lastEspCommand = millis();
+    handleCommand(command);
+    lastWebTelemetry = millis();
+  } else if (espLineLen) {
+    Serial.print("ESP IGNORED LINE: "); Serial.println(espLine);
   }
   espLineLen = 0;
 }
+
 void loop() {
   while (Serial.available()) handleCommand((char)Serial.read());
   while (Serial2.available()) {
@@ -960,21 +1046,50 @@ void loop() {
     if (espLineLen < sizeof(espLine) - 1) espLine[espLineLen++] = c;
     else espLineLen = 0;
   }
-  if (actuatorActive && (int32_t)(millis() - actuatorStopAt) >= 0) {
-    Serial.println("ACTUATOR AUTO-STOP: SENDING ALL-OFF");
-    stopActuators();
-  }
-  if (actuatorArmed && (int32_t)(millis() - actuatorArmUntil) >= 0) {
-    actuatorArmed = false; Serial.println("ACTUATOR ARM EXPIRED");
-  }
-  if (csvMode && (uint32_t)(millis() - lastPanel) >= 1000UL) { lastPanel=millis(); csvSample(); }
-  if (livePanel && (uint32_t)(millis() - lastPanel) >= 1000UL) { lastPanel=millis(); panel(); }
-  if (activeEcuProfile == PROFILE_BOSCH) {
+  if (activeEcuProfile == PROFILE_SIEMENS) {
+    if (actuatorActive && (int32_t)(millis() - actuatorStopAt) >= 0) {
+      Serial.println("ACTUATOR AUTO-STOP: SENDING ALL-OFF");
+      stopActuators();
+    }
+    if (actuatorArmed && (int32_t)(millis() - actuatorArmUntil) >= 0) {
+      actuatorArmed = false; Serial.println("ACTUATOR ARM EXPIRED");
+    }
+    if (csvMode && (uint32_t)(millis() - lastPanel) >= 1000UL) { lastPanel=millis(); csvSample(); }
+    if (livePanel && (uint32_t)(millis() - lastPanel) >= 1000UL) { lastPanel=millis(); panel(); }
+
+    // Keep V49's packet ACK pacing and stable rollback for the Siemens stream.
+    uint32_t liveNow = millis();
+    if (waitingPrideAck &&
+        (uint32_t)(liveNow - lastPridePacketSentAt) >= ACK_WAIT_LIMIT_MS) {
+      waitingPrideAck = false;
+      ++incompletePrideAcks;
+      adaptivePeriodMs = BASELINE_PERIOD_MS;
+      fullCycleAckStreak = 0;
+      sendWebStatus("LIVE_ACK_TIMEOUT_STABLE_FALLBACK");
+    }
+    if (connected && !livePanel && !csvMode && !waitingPrideAck &&
+        (uint32_t)(liveNow - lastWebTelemetry) >= adaptivePeriodMs &&
+        (uint32_t)(liveNow - lastEspCommand) >= 700UL) {
+      lastWebTelemetry = liveNow;
+      uint8_t d[93];
+      if (fetchBlock(d)) {
+        readFailuresInARow = 0;
+        sendWebTelemetry(d);
+        if (emaxPrideProfile) {
+          ackExpectedCycle = emaxCycle;
+          lastPridePacketSentAt = millis();
+          waitingPrideAck = true;
+        }
+      } else {
+        sendWebStatus("READ_FAILED");
+        if (readFailuresInARow < 255) ++readFailuresInARow;
+        if (readFailuresInARow >= 2) {
+          fullCycleAckStreak = 0;
+          adaptivePeriodMs = BASELINE_PERIOD_MS;
+        }
+      }
+    }
+  } else {
     BoschFirmware::poll();
-  } else if (connected && !livePanel && !csvMode &&
-      (uint32_t)(millis() - lastWebTelemetry) >= 1600UL &&
-      (uint32_t)(millis() - lastEspCommand) >= 1600UL) {
-    lastWebTelemetry = millis();
-    uint8_t d[93];
-    if (fetchBlock(d)) sendWebTelemetry(d);
-    else sendWebStatus("READ_FAILED");
+  }
+}

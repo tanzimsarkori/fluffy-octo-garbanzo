@@ -1,8 +1,8 @@
-# Bosch Zamyad 7.9.7.1 integration — V50 / Yasir Diag 2.5
+# Bosch Zamyad 7.9.7.1 integration — V51 / Yasir Diag 2.5
 
 ## Architecture
 
-The dual-profile firmware is based on the Siemens V47 sketch supplied with the project and keeps the existing links:
+The dual-profile firmware is based on the proven Siemens V49 firmware and keeps the existing links:
 
 - K-Line: STM32 `Serial3`, PB10/PB11, 10400 baud.
 - ESP-01: STM32 `Serial2`, PA2/PA3, 115200 baud.
@@ -10,7 +10,7 @@ The dual-profile firmware is based on the Siemens V47 sketch supplied with the p
 
 No ESP-01 firmware change is required if the current bridge forwards newline-terminated TCP messages unchanged to and from STM32 Serial2.
 
-The combined sketch is in `firmware/YASIR_KLINE_V50_DUAL_PROFILE/`. Open `YASIR_KLINE_V50_DUAL_PROFILE.ino` in the Arduino IDE; keep the adjacent `.cpp` and `.h` files in the sketch folder.
+The combined sketch is in `firmware/YASIR_KLINE_V51_DUAL_PROFILE/`. Open `YASIR_KLINE_V51_DUAL_PROFILE.ino` in the Arduino IDE; keep the adjacent `.cpp` and `.h` files in the sketch folder.
 
 ## ECU profile selection
 
@@ -36,7 +36,7 @@ After selecting Bosch, Android sends `!` followed by one ASCII key and a newline
 | `X` | Stop a timed test early |
 | `0` | Disconnect the Bosch K-Line session |
 
-Siemens retains the existing V47 commands and Wi-Fi link.
+Siemens retains the V49 commands, adaptive 35-parameter ACK pacing, and existing Wi-Fi link.
 
 ## Live data and limitations
 
