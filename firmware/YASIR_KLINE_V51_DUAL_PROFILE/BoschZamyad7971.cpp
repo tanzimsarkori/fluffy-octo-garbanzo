@@ -763,15 +763,18 @@ static void sendBoschDtcJson() {
   }
   Serial2.println(F("]}"));
 }
-static bool sendBoschParameterRow(const char *id, const char *name, float value,
-                                  uint8_t decimals, const char *unit, const char *status) {
-  // Keep each JSON line small for ESP-01 UART/TCP bridges with short line buffers.
-  Serial2.print(F("{\"type\":\"parameters\",\"profile\":\"bosch_zamyad_7971\",\"connected\":true,\"parameters\":[{\"id\":\""));
+static bool sendBoschParameterRow(const char *id, const char *name,
+                                  float value, uint8_t decimals,
+                                  const char *unit, const char *status) {
+  // Keep each UART line compact: ESP-01 serial-to-TCP bridges may have small
+  // receive buffers, and Persian UTF-8 names/statuses expand to many bytes.
+  // The Android app already has localized labels for these fixed Bosch IDs.
+  (void)name;
+  (void)status;
+  Serial2.print(F("{\"type\":\"parameters\",\"profile\":\"bosch_zamyad_7971\",\"parameters\":[{\"id\":\""));
   Serial2.print(id);
-  Serial2.print(F("\",\"name\":\"")); Serial2.print(name);
   Serial2.print(F("\",\"value\":")); Serial2.print(value, decimals);
   Serial2.print(F(",\"unit\":\"")); Serial2.print(unit);
-  Serial2.print(F("\",\"status\":\"")); Serial2.print(status);
   Serial2.println(F("\"}]}"));
   return true;
 }
