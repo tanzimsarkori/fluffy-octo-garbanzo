@@ -2,7 +2,7 @@
 
 ## Current scope
 
-This profile implements **generic OBD-II over ISO 15765-4 CAN**, using 11-bit identifiers at 500 kbit/s:
+This profile implements **generic OBD-II over ISO 15765-4 CAN**, using 11-bit identifiers. It probes at 500 kbit/s first and falls back to 250 kbit/s:
 
 - Functional request: 0x7DF
 - ECU responses: 0x7E8–0x7EF
@@ -17,7 +17,7 @@ Live PIDs currently decoded: RPM, coolant temperature, intake-air temperature, v
 
 ## Firmware dependency
 
-Install the **eXoCAN** Arduino library (repository: https://github.com/exothink/eXoCAN) in Arduino IDE's Library Manager or the STM32 Arduino libraries folder before compiling this sketch. The STM32F103 CAN peripheral uses PA11 (CAN RX) and PA12 (CAN TX); the profile selects eXoCAN's `PORTA_11_12_XCVR` mapping and 500 kbit/s timing.
+Install the **eXoCAN** Arduino library (repository: https://github.com/exothink/eXoCAN) in Arduino IDE's Library Manager or the STM32 Arduino libraries folder before compiling this sketch. The STM32F103 CAN peripheral uses PA11 (CAN RX) and PA12 (CAN TX); the profile selects eXoCAN's `PORTA_11_12_XCVR` mapping and probes both 500 and 250 kbit/s.
 
 This source has not been compiled or validated against a vehicle in this change.
 
