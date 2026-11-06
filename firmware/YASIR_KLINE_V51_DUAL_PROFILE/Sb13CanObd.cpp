@@ -93,12 +93,17 @@ static void readDtc() {
   if (!readService(0x03, 0, false, data, len)) {
     status("DTC_READ_FAILED"); return;
   }
-  uint8_t count = (uint8_t)(len / 2);
+  uint8_t pairs = (uint8_t)(len / 2);
+  uint8_t count = 0;
+  for (uint8_t i = 0; i < pairs; ++i)
+    if (data[i * 2] || data[i * 2 + 1]) ++count;
   Serial2.print(F("{\"type\":\"dtc\",\"profile\":\"sb13_can_obd\",\"count\":"));
   Serial2.print(count);
   Serial2.print(F(",\"codes\":["));
-  for (uint8_t i = 0; i < count; ++i) {
-    if (i) Serial2.print(',');
+  uint8_t emitted = 0;
+  for (uint8_t i = 0; i < pairs; ++i) {
+    if (!(data[i * 2] || data[i * 2 + 1])) continue;
+    if (emitted++) Serial2.print(',');
     Serial2.print(F("{\"code\":\""));
     if (data[i * 2] < 16) Serial2.print('0');
     Serial2.print(data[i * 2], HEX);
@@ -140,7 +145,7 @@ static void emitPid(uint8_t pid) {
   Serial2.println(F("\",\"status\":\"تازه\"}]}"));
 }
 void initialize() {
-  canBus.begin(STD_ID_LEN, BR500K, PORTA_11_12_XCVR);
+  // eXoCAN configures the peripheral in its constructor.
   canBus.setAutoTxRetry(true);
   canBus.filterMask32Init(0, 0x7E8, 0x7F8);
   initialized = true;
@@ -162,7 +167,7 @@ void handleKey(char key) {
 }
 void poll() {
   if (!initialized || !connected || !liveEnabled ||
-      (uint32_t)(millis() - lastLive) < 2500UL) return;
+      (uint32_t)(millis() - lastLive) < 500UL) return;
   lastLive = millis();
   static const uint8_t pids[] = {0x0C, 0x05, 0x0F, 0x0D, 0x0B, 0x11, 0x42};
   emitPid(pids[lastPid]);
