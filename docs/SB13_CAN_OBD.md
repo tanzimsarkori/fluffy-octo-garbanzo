@@ -2,10 +2,11 @@
 
 ## Current scope
 
-This profile implements **generic OBD-II over ISO 15765-4 CAN**, using 11-bit identifiers. It probes at 500 kbit/s first and falls back to 250 kbit/s:
+This profile implements **generic OBD-II over ISO 15765-4 CAN**. It probes all four standard CAN variants in this order: 11-bit/500 kbit/s, 29-bit/500 kbit/s, 11-bit/250 kbit/s, then 29-bit/250 kbit/s.
 
-- Functional request: 0x7DF
-- ECU responses: 0x7E8–0x7EF
+- 11-bit functional request: 0x7DF; ECU responses: 0x7E8–0x7EF
+- 29-bit functional request: 0x18DB33F1; ECU responses: 0x18DAF100–0x18DAF1FF
+- Multi-frame 29-bit replies receive flow-control frames addressed back to the ECU
 - Mode 01: standard powertrain PIDs
 - Mode 03: stored generic diagnostic trouble codes
 - Mode 04: clear emissions-related diagnostic information
