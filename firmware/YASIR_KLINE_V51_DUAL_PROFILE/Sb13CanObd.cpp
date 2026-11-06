@@ -27,6 +27,9 @@ static uint8_t nextPid = 0;
 static bool extendedIds = false;
 
 static void sendStatus(const char *message) {
+  // Mirror CAN diagnostics to the USB/PC serial monitor as well as the ESP link.
+  Serial.print(F("SB13 CAN STATUS: "));
+  Serial.println(message);
   Serial2.print(F("{\"type\":\"status\",\"profile\":\"sb13_can_obd\",\"message\":\""));
   Serial2.print(message);
   Serial2.println(F("\"}"));
