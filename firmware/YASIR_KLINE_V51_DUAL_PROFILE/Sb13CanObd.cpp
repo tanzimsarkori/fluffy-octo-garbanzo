@@ -102,7 +102,7 @@ static bool receiveResponse(uint8_t expectedService, uint8_t *out,
         return false;
       }
       nextSequence = (nextSequence + 1) & 0x0F;
-      for (uint8_t i = 1; i < (uint8_t)dlc && copied < expectedLength; ++i)
+      for (uint8_t i = 1; i < (uint8_t)dlc && copied < outLength; ++i)
         out[copied++] = frame[i];
       if (copied >= outLength) return true;
     }
