@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <string.h>
 #include "BoschZamyad7971.h"
+#include "Sb13CanObd.h"
 
 // YASIR K-LINE V51 DUAL PROFILE - STM32duino Maple STM32F1 core
 
@@ -54,7 +55,7 @@ uint16_t rxLen = 0;
 bool connected = false;
 // E-MAX-derived Siemens Pride profile; not assumed valid for every Siemens ECU.
 bool emaxPrideProfile = true;
-enum EcuProfile : uint8_t { PROFILE_SIEMENS, PROFILE_BOSCH };
+enum EcuProfile : uint8_t { PROFILE_SIEMENS, PROFILE_BOSCH, PROFILE_SB13_CAN };
 EcuProfile activeEcuProfile = PROFILE_SIEMENS;
 
 void sendWebStatus(const char *message) {
@@ -872,6 +873,7 @@ void menu() {
 }
 void handleCommand(char c) {
   if (activeEcuProfile == PROFILE_BOSCH) { BoschFirmware::handleKey(c); return; }
+  if (activeEcuProfile == PROFILE_SB13_CAN) { Sb13CanObd::handleKey(c); return; }
   if (c == '\r' || c == '\n' || c == ' ' || c == '\t') return;
   if (c == 'I' || c == 'i') {
     adaptiveMode = false;
@@ -922,6 +924,7 @@ void handleCommand(char c) {
 }
 
 void selectEcuProfile(EcuProfile profile) {
+  if (activeEcuProfile == PROFILE_SB13_CAN) Sb13CanObd::handleKey('0');
   if (activeEcuProfile == PROFILE_BOSCH) {
     BoschFirmware::disconnect();
   } else {
@@ -947,6 +950,9 @@ void selectEcuProfile(EcuProfile profile) {
   if (profile == PROFILE_BOSCH) {
     Serial.println(F("ACTIVE ECU PROFILE: BOSCH ZAMYAD 7.9.7.1"));
     sendWebStatus("PROFILE_BOSCH_SELECTED");
+  } else if (profile == PROFILE_SB13_CAN) {
+    Serial.println(F("ACTIVE ECU PROFILE: SB13 GENERIC OBD-II CAN"));
+    sendWebStatus("PROFILE_SB13_CAN_SELECTED");
   } else {
     Serial.println(F("ACTIVE ECU PROFILE: SIEMENS"));
     sendWebStatus("PROFILE_SIEMENS_SELECTED");
@@ -958,6 +964,7 @@ void setup() {
   Serial2.begin(ESP_BAUD);    // ESP-01 UART on PA2/PA3
   Serial3.begin(K_BAUD);      // K-Line on PB10/PB11
   BoschFirmware::initialize();
+  Sb13CanObd::initialize();
   delay(1200);
   menu();
   Serial2.println(F("{\"type\":\"status\",\"message\":\"STM32_READY\"}"));
@@ -968,6 +975,12 @@ void processEspLine() {
   if (strcmp(espLine, "!PROFILE:BOSCH") == 0) {
     selectEcuProfile(PROFILE_BOSCH);
     Serial2.println(F("{\"type\":\"ack\",\"command\":\"PROFILE:BOSCH\"}"));
+    espLineLen = 0;
+    return;
+  }
+  if (strcmp(espLine, "!PROFILE:SB13_CAN") == 0) {
+    selectEcuProfile(PROFILE_SB13_CAN);
+    Serial2.println(F("{\"type\":\"ack\",\"command\":\"PROFILE:SB13_CAN\"}"));
     espLineLen = 0;
     return;
   }
@@ -1025,6 +1038,8 @@ void processEspLine() {
     char key = espLine[1];
     if (activeEcuProfile == PROFILE_BOSCH) {
       if (strchr("012346ABCDEFGHIJKLMNX?", key)) command = key;
+    } else if (activeEcuProfile == PROFILE_SB13_CAN) {
+      if (strchr("01236", key)) command = key;
     } else if (strchr("EDVIF1234567890ABCTXZLHPMQGKUSJWNORY", key)) {
       command = key;
     }
@@ -1094,6 +1109,8 @@ void loop() {
         }
       }
     }
+  } else if (activeEcuProfile == PROFILE_SB13_CAN) {
+    Sb13CanObd::poll();
   } else {
     BoschFirmware::poll();
   }
