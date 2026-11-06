@@ -21,7 +21,6 @@ static uint32_t pids01 = 0;
 static uint32_t pids40 = 0;
 static uint32_t lastLive = 0;
 static uint8_t nextPid = 0;
-static uint8_t currentBitRate = BR500K;
 
 static void sendStatus(const char *message) {
   Serial2.print(F("{\"type\":\"status\",\"profile\":\"sb13_can_obd\",\"message\":\""));
@@ -32,7 +31,6 @@ static void configureCan(uint8_t bitRate) {
   canBus.begin(STD_ID_LEN, bitRate, PORTA_11_12_XCVR);
   canBus.setAutoTxRetry(true);
   canBus.filterMask32Init(0, RESPONSE_MIN, RX_MASK);
-  currentBitRate = bitRate;
 }
 static bool sendFrame(uint16_t id, const uint8_t *data, uint8_t length) {
   return canBus.transmit(id, data, length);
@@ -180,6 +178,10 @@ static void probe() {
 }
 
 static void readDtc() {
+  if (!connected) {
+    sendStatus("OBD_CAN_NOT_CONNECTED");
+    return;
+  }
   uint8_t data[128] = {0};
   uint16_t length = 0;
   if (!readService(0x03, 0, false, data, length)) {
@@ -210,6 +212,10 @@ static void readDtc() {
   sendStatus(count ? "DTC_READ_OK" : "DTC_READ_OK_NO_CODES");
 }
 static void clearDtc() {
+  if (!connected) {
+    sendStatus("OBD_CAN_NOT_CONNECTED");
+    return;
+  }
   uint8_t data[8] = {0};
   uint16_t length = 0;
   if (readService(0x04, 0, false, data, length))
