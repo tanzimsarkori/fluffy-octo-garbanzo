@@ -79,7 +79,7 @@ static bool receiveResponse(uint8_t expectedService, uint8_t *out,
     if (!multiFrame && frameType == 1) {
       responseId = (uint16_t)id;
       expectedLength = ((uint16_t)(frame[0] & 0x0F) << 8) | frame[1];
-      if (expectedLength < 2 || expectedLength > 128 || dlc < 3 ||
+      if (expectedLength < 2 || expectedLength > 128 || dlc < 8 ||
           frame[2] != expectedService) {
         expectedLength = 0;
         continue;
