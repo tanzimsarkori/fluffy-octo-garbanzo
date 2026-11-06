@@ -39,7 +39,9 @@ static void configureCan(uint8_t bitRate, bool useExtendedIds) {
   if (useExtendedIds)
     canBus.filterMask32Init(0, RESPONSE_BASE_29, RESPONSE_MASK_29);
   else
-    canBus.filterMask32Init(0, RESPONSE_MIN_11, RX_MASK_11);
+    // eXoCAN's 32-bit filter helper sets IDE=1 (extended frame).
+    // Use its 16-bit filter helper for standard 11-bit OBD responses.
+    canBus.filterMask16Init(0, RESPONSE_MIN_11, RX_MASK_11);
 }
 static bool sendFrame(uint16_t id, const uint8_t *data, uint8_t length) {
   return canBus.transmit(id, data, length);
