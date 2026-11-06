@@ -4,10 +4,13 @@
 
 // Generic ISO 15765-4 OBD-II CAN only. No Ezam/SB13 proprietary services.
 namespace Sb13CanObd {
-static const uint16_t REQUEST_ID = 0x7DF;
-static const uint16_t RESPONSE_MIN = 0x7E8;
-static const uint16_t RESPONSE_MAX = 0x7EF;
-static const uint16_t RX_MASK = 0x7F8;
+static const uint32_t REQUEST_ID_11 = 0x7DF;
+static const uint32_t RESPONSE_MIN_11 = 0x7E8;
+static const uint32_t RESPONSE_MAX_11 = 0x7EF;
+static const uint32_t RX_MASK_11 = 0x7F8;
+static const uint32_t REQUEST_ID_29 = 0x18DB33F1UL;
+static const uint32_t RESPONSE_BASE_29 = 0x18DAF100UL;
+static const uint32_t RESPONSE_MASK_29 = 0x1FFFFF00UL;
 static const uint32_t RESPONSE_TIMEOUT_MS = 900;
 static const uint32_t LIVE_PERIOD_MS = 350;
 
@@ -21,16 +24,22 @@ static uint32_t pids01 = 0;
 static uint32_t pids40 = 0;
 static uint32_t lastLive = 0;
 static uint8_t nextPid = 0;
+static bool extendedIds = false;
 
 static void sendStatus(const char *message) {
   Serial2.print(F("{\"type\":\"status\",\"profile\":\"sb13_can_obd\",\"message\":\""));
   Serial2.print(message);
   Serial2.println(F("\"}"));
 }
-static void configureCan(uint8_t bitRate) {
-  canBus.begin(STD_ID_LEN, bitRate, PORTA_11_12_XCVR);
+static void configureCan(uint8_t bitRate, bool useExtendedIds) {
+  extendedIds = useExtendedIds;
+  canBus.begin(useExtendedIds ? EXT_ID_LEN : STD_ID_LEN, bitRate,
+               PORTA_11_12_XCVR);
   canBus.setAutoTxRetry(true);
-  canBus.filterMask32Init(0, RESPONSE_MIN, RX_MASK);
+  if (useExtendedIds)
+    canBus.filterMask32Init(0, RESPONSE_BASE_29, RESPONSE_MASK_29);
+  else
+    canBus.filterMask32Init(0, RESPONSE_MIN_11, RX_MASK_11);
 }
 static bool sendFrame(uint16_t id, const uint8_t *data, uint8_t length) {
   return canBus.transmit(id, data, length);
@@ -39,7 +48,8 @@ static bool sendRequest(uint8_t service, uint8_t pid, bool hasPid) {
   uint8_t frame[8] = {0x02, service, pid, 0, 0, 0, 0, 0};
   frame[0] = hasPid ? 0x02 : 0x01;
   if (!hasPid) frame[2] = 0;
-  return sendFrame(REQUEST_ID, frame, 8);
+  const uint32_t requestId = extendedIds ? REQUEST_ID_29 : REQUEST_ID_11;
+  return sendFrame(requestId, frame, 8);
 }
 
 // Returns application bytes after the positive response service byte.
@@ -49,7 +59,7 @@ static bool receiveResponse(uint8_t expectedService, uint8_t *out,
                             uint32_t timeoutMs = RESPONSE_TIMEOUT_MS) {
   const uint32_t started = millis();
   outLength = 0;
-  uint16_t responseId = 0;
+  uint32_t responseId = 0;
   uint16_t expectedLength = 0;
   uint16_t copied = 0;
   uint8_t nextSequence = 1;
@@ -64,7 +74,11 @@ static bool receiveResponse(uint8_t expectedService, uint8_t *out,
       delay(1);
       continue;
     }
-    if (id < RESPONSE_MIN || id > RESPONSE_MAX || dlc > 8) continue;
+    const uint32_t canId = (uint32_t)id;
+    const bool isObdResponse = extendedIds
+        ? ((canId & RESPONSE_MASK_29) == RESPONSE_BASE_29)
+        : (canId >= RESPONSE_MIN_11 && canId <= RESPONSE_MAX_11);
+    if (!isObdResponse || dlc > 8) continue;
 
     const uint8_t frameType = frame[0] >> 4;
     if (!multiFrame && frameType == 0) {
@@ -77,7 +91,7 @@ static bool receiveResponse(uint8_t expectedService, uint8_t *out,
     }
 
     if (!multiFrame && frameType == 1) {
-      responseId = (uint16_t)id;
+      responseId = canId;
       expectedLength = ((uint16_t)(frame[0] & 0x0F) << 8) | frame[1];
       if (expectedLength < 2 || expectedLength > 128 || dlc < 8 ||
           frame[2] != expectedService) {
@@ -85,7 +99,10 @@ static bool receiveResponse(uint8_t expectedService, uint8_t *out,
         continue;
       }
       const uint8_t flowControl[8] = {0x30, 0x00, 0x00, 0, 0, 0, 0, 0};
-      if (!sendFrame((uint16_t)(responseId - 8), flowControl, 8)) {
+      const uint32_t flowControlId = extendedIds
+          ? (0x18DA00F1UL | ((responseId & 0xFFUL) << 8))
+          : (responseId - 8);
+      if (!sendFrame(flowControlId, flowControl, 8)) {
         expectedLength = 0;
         continue;
       }
@@ -96,7 +113,7 @@ static bool receiveResponse(uint8_t expectedService, uint8_t *out,
       continue;
     }
 
-    if (multiFrame && frameType == 2 && id == responseId) {
+    if (multiFrame && frameType == 2 && canId == responseId) {
       if (dlc < 2 || (frame[0] & 0x0F) != nextSequence) {
         outLength = 0;
         return false;
@@ -142,34 +159,39 @@ static bool pidSupported(uint8_t pid) {
   return (mask & ((uint32_t)1 << (31 - bitIndex))) != 0;
 }
 
-static bool probeAtCurrentRate() {
+static bool probeAtCurrentConfig() {
   havePids01 = readSupportedPids(0x00, pids01);
   if (!havePids01) return false;
   havePids40 = readSupportedPids(0x40, pids40);
   return true;
 }
-static void probe() {
-  sendStatus("CAN_PROBING_500K");
-  configureCan(BR500K);
-  if (probeAtCurrentRate()) {
-    connected = true;
-    liveEnabled = true;
-    nextPid = 0;
-    lastLive = millis();
-    sendStatus("OBD_CAN_CONNECTED_500K");
-    return;
-  }
+static bool tryConfig(uint8_t bitRate, bool useExtendedIds,
+                      const char *status) {
+  sendStatus(status);
+  configureCan(bitRate, useExtendedIds);
+  if (!probeAtCurrentConfig()) return false;
 
-  sendStatus("CAN_PROBING_250K");
-  configureCan(BR250K);
-  if (probeAtCurrentRate()) {
-    connected = true;
-    liveEnabled = true;
-    nextPid = 0;
-    lastLive = millis();
-    sendStatus("OBD_CAN_CONNECTED_250K");
-    return;
-  }
+  connected = true;
+  liveEnabled = true;
+  nextPid = 0;
+  lastLive = millis();
+  if (useExtendedIds)
+    sendStatus(bitRate == BR500K ? "OBD_CAN_CONNECTED_29BIT_500K"
+                                 : "OBD_CAN_CONNECTED_29BIT_250K");
+  else
+    sendStatus(bitRate == BR500K ? "OBD_CAN_CONNECTED_11BIT_500K"
+                                 : "OBD_CAN_CONNECTED_11BIT_250K");
+  return true;
+}
+static void probe() {
+  connected = false;
+  liveEnabled = false;
+  havePids01 = havePids40 = false;
+
+  if (tryConfig(BR500K, false, "CAN_PROBING_11BIT_500K")) return;
+  if (tryConfig(BR500K, true,  "CAN_PROBING_29BIT_500K")) return;
+  if (tryConfig(BR250K, false, "CAN_PROBING_11BIT_250K")) return;
+  if (tryConfig(BR250K, true,  "CAN_PROBING_29BIT_250K")) return;
 
   connected = false;
   liveEnabled = false;
@@ -268,7 +290,7 @@ static void emitPid(uint8_t pid) {
 }
 
 void initialize() {
-  configureCan(BR500K);
+  configureCan(BR500K, false);
   initialized = true;
 }
 void handleKey(char key) {
