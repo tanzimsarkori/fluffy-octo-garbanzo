@@ -90,7 +90,7 @@ static bool receiveResponse(uint8_t expectedService, uint8_t *out,
         continue;
       }
       outLength = expectedLength - 1;
-      copied = expectedLength > 5 ? 5 : expectedLength;
+      copied = outLength > 5 ? 5 : outLength;
       if (copied) memcpy(out, frame + 3, copied);
       multiFrame = true;
       continue;
@@ -104,7 +104,7 @@ static bool receiveResponse(uint8_t expectedService, uint8_t *out,
       nextSequence = (nextSequence + 1) & 0x0F;
       for (uint8_t i = 1; i < (uint8_t)dlc && copied < expectedLength; ++i)
         out[copied++] = frame[i];
-      if (copied >= expectedLength) return true;
+      if (copied >= outLength) return true;
     }
   }
   outLength = 0;
