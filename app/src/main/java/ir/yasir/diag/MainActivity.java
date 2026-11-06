@@ -52,7 +52,7 @@ public class MainActivity extends Activity {
   final HashMap<Integer, Boolean> vehiclePhotoLoading = new HashMap<>();
   TextView selectedBrandLabel, diagnosticSelectionLabel, prideSiemensUpdated;
   Button prideSiemensChoice, boschZamyadChoice;
-  LinearLayout boschServiceSection;
+  LinearLayout boschServiceSection, sb13CanSection;
   TextView boschFaultValues;
   LinearLayout prideSiemensSection, boschZamyadSection;
   TextView boschZamyadUpdated;
@@ -273,6 +273,7 @@ public class MainActivity extends Activity {
     prideSiemensSection = section("ECU زیمنس پراید • ۳۵ پارامتر زنده");
     boschZamyadSection = section("ECU بوش زامیاد 7.9.7.1 • داده زنده آزمایشی");
     boschServiceSection = section("ECU بوش زامیاد 7.9.7.1 — خطاها و عملگرها");
+    sb13CanSection = section("نیسان زامیاد بنزینی • عظام SB13 • CAN");
     ecuSelectionSection = section("انتخاب ECU");
     diagnosticMenu = section("منوی عیب‌یابی");
     settingsSection = section("تنظیمات ظاهری و برنامه");
@@ -322,6 +323,16 @@ public class MainActivity extends Activity {
     addUtilityCard(toolsGrid, "گزارش‌ها", "خطا و داده", "▤", () -> show(dtcSection));
     addUtilityCard(toolsGrid, "راهنما", "اطلاعات نسخه", "ⓘ", () -> show(helpSection));
     addUtilityCard(toolsGrid, "اتصال", "E-MAX", "⌁", () -> connect());
+
+    content = sb13CanSection;
+    content.addView(text("این گزینه از OBD-II عمومی روی CAN استفاده می‌کند: خواندن و پاک‌کردن کدهای عمومی و چند پارامتر استاندارد. سرویس اختصاصی عظام SB13 و عملگرها هنوز تأیید نشده‌اند.",15,false));
+    button("اتصال Wi-Fi به دستگاه", () -> connect());
+    button("اتصال / شناسایی ECU روی CAN", () -> send("!1"));
+    button("خواندن خطاهای عمومی", () -> { show(dtcSection); send("!2"); });
+    button("پاک‌کردن خطاهای عمومی", () -> confirmClear());
+    button("خواندن پارامترهای زنده استاندارد", () -> { show(sb13CanSection); send("!6"); });
+    button("قطع ارتباط CAN", () -> send("!0"));
+    back(ecuSelectionSection);
 
     content = ecuSelectionSection;
     selectedBrandLabel = text("شرکت انتخابی: —",18,true);
@@ -679,6 +690,7 @@ public class MainActivity extends Activity {
     selectedEcu = b != null ? b.getString("yasir.ecu", "") :
         preferences.getString("yasir.lastEcu", "");
     if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) pendingProfileCommand = "!PROFILE:BOSCH";
+    else if ("SB13".equals(selectedEcu)) pendingProfileCommand = "!PROFILE:SB13_CAN";
     else if ("زیمنس پراید".equals(selectedEcu) || "زیمنس SIM2K-34VR".equals(selectedEcu))
       pendingProfileCommand = "!PROFILE:SIEMENS";
     final LinearLayout restoreScreen = screenFromKey(restoreKey);
@@ -1070,6 +1082,13 @@ public class MainActivity extends Activity {
       setStatus("پروفایل بوش زامیاد انتخاب شد؛ اتصال ECU را بزنید");
       return;
     }
+    if ("SB13".equals(ecu)) {
+      diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: عظام SB13 بنزینی");
+      requestProfileCommand("!PROFILE:SB13_CAN");
+      show(sb13CanSection);
+      setStatus("پروفایل CAN عمومی انتخاب شد؛ ابتدا به Wi-Fi دستگاه وصل شوید");
+      return;
+    }
     if ("زیمنس پراید".equals(ecu)) {
       requestProfileCommand("!PROFILE:SIEMENS");
       diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
@@ -1104,6 +1123,7 @@ public class MainActivity extends Activity {
     if (screen == prideSiemensSection) return "pride";
     if (screen == boschZamyadSection) return "boschZamyad";
     if (screen == boschServiceSection) return "boschService";
+    if (screen == sb13CanSection) return "sb13Can";
     if (screen == dashboardSection) return "dashboard";
     if (screen == diagnosticMenu) return "diagnostic";
     if (screen == parametersMenu) return "parameters";
@@ -1236,7 +1256,7 @@ public class MainActivity extends Activity {
     if(currentScreen == home) super.onBackPressed();
     else if(currentScreen == ecuSelectionSection) show(home);
     else if(currentScreen == diagnosticMenu) show(home);
-    else if(currentScreen == boschServiceSection) show(ecuSelectionSection);
+    else if(currentScreen == boschServiceSection || currentScreen == sb13CanSection) show(ecuSelectionSection);
     else if(currentScreen == boschZamyadSection) show(boschServiceSection);
     else if(currentScreen == prideSiemensSection) show(parametersMenu);
     else if(currentScreen == speedSection || currentScreen == emissionsSection || currentScreen == ignitionSection || currentScreen == airSection || currentScreen == fuelSection) show(parametersMenu);
