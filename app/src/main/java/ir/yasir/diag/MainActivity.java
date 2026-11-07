@@ -41,6 +41,7 @@ public class MainActivity extends Activity {
   final Runnable showRealTcpLoss = () -> displayTcpBadge(false);
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
   LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, ecuSelectionSection, diagnosticMenu, settingsSection, updateSection, helpSection;
+  LinearLayout dynamicReturnTarget;
   ScrollView scrollContainer;
   final HashMap<String, Integer> screenScrollPositions = new HashMap<>();
   String activeScreenKey = "home";
@@ -53,6 +54,7 @@ public class MainActivity extends Activity {
   TextView selectedBrandLabel, diagnosticSelectionLabel, prideSiemensUpdated;
   Button prideSiemensChoice, boschZamyadChoice;
   LinearLayout boschServiceSection, sb13CanSection;
+  TextView sb13CanUpdated;
   TextView boschFaultValues;
   LinearLayout prideSiemensSection, boschZamyadSection;
   TextView boschZamyadUpdated;
@@ -307,6 +309,7 @@ public class MainActivity extends Activity {
     addQuickCard(quickGrid, "داده‌های زنده", "مشاهده پارامترهای لحظه‌ای", "▥", Color.rgb(0, 214, 133), () -> {
       if ("زیمنس پراید".equals(selectedEcu)) show(prideSiemensSection);
       else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) show(boschServiceSection);
+      else if ("SB13".equals(selectedEcu)) { dynamicReturnTarget = sb13CanSection; show(dynamicParametersSection); send("!6"); }
       else show(dashboardSection);
     });
     addQuickCard(quickGrid, "تست عملگرها", "تست‌های تعمیرگاهی", "⚙", Color.rgb(255, 176, 0), () -> show("بوش زامیاد 7.9.7.1".equals(selectedEcu) ? boschServiceSection : actuatorSection));
@@ -326,11 +329,17 @@ public class MainActivity extends Activity {
 
     content = sb13CanSection;
     content.addView(text("این گزینه از OBD-II عمومی روی CAN استفاده می‌کند: خواندن و پاک‌کردن کدهای عمومی و چند پارامتر استاندارد. سرویس اختصاصی عظام SB13 و عملگرها هنوز تأیید نشده‌اند.",15,false));
+    sb13CanUpdated = text("هنوز پارامتر زنده‌ای دریافت نشده است", 13, false);
+    content.addView(sb13CanUpdated);
     button("اتصال Wi-Fi به دستگاه", () -> connect());
     button("اتصال / شناسایی ECU روی CAN", () -> send("!1"));
     button("خواندن خطاهای عمومی", () -> { show(dtcSection); send("!2"); });
     button("پاک‌کردن خطاهای عمومی", () -> confirmClear());
-    button("خواندن پارامترهای زنده استاندارد", () -> { show(sb13CanSection); send("!6"); });
+    button("خواندن پارامترهای زنده استاندارد", () -> {
+      dynamicReturnTarget = sb13CanSection;
+      show(dynamicParametersSection);
+      send("!6");
+    });
     button("قطع ارتباط CAN", () -> send("!0"));
     back(ecuSelectionSection);
 
@@ -372,7 +381,7 @@ public class MainActivity extends Activity {
     button("۳۵ پارامتر ECU زیمنس پراید", () -> show(prideSiemensSection));
     button("عیب‌یابی Bosch زامیاد 7.9.7.1", () -> show(boschServiceSection));
     button("پارامترها", () -> show(parametersMenu));
-    button("همه پارامترهای زنده (پویا)", () -> show(dynamicParametersSection));
+    button("همه پارامترهای زنده (پویا)", () -> { dynamicReturnTarget = home; show(dynamicParametersSection); });
     button("عملگرها", () -> show(actuatorSection));
     button("ریست کردن مقادیر سازگار یافته", () -> show(resetSection));
     button("نمودار", () -> show(chartSection));
@@ -514,11 +523,12 @@ public class MainActivity extends Activity {
     content.addView(text("نمودارهای زنده در نسخه بعدی اضافه می‌شوند؛ مقادیر عددی فعلاً در بخش پارامترها در دسترس‌اند.",16,false));
     back(home);
     content = dynamicParametersSection;
-    content.addView(text("این فهرست از پیام‌های JSON دستگاه ساخته می‌شود. با افزودن پارامتر جدید به فریم‌ور و ارسال آن در parameters یا telemetry، نیازی به تغییر برنامه نیست.",14,false));
+    content.addView(text("پارامترهای زنده‌ای که ECU پاسخ می‌دهد در این فهرست نمایش داده می‌شوند. پشتیبانی هر پارامتر به ECU و استاندارد OBD-II وابسته است.",14,false));
     dynamicParameterList = new LinearLayout(this);
     dynamicParameterList.setOrientation(LinearLayout.VERTICAL);
     dynamicParametersSection.addView(dynamicParameterList);
-    back(home);
+    dynamicReturnTarget = home;
+    button("بازگشت", () -> show(dynamicReturnTarget == null ? home : dynamicReturnTarget));
 
     content = prideSiemensSection;
     content.addView(text("پروفایل زیمنس پراید • نمایش تعمیرگاهی ۳۵ پارامتر", 18, true));
@@ -2020,6 +2030,9 @@ public class MainActivity extends Activity {
         if ("bosch_zamyad_7971".equals(j.optString("profile"))) {
           if (boschZamyadUpdated != null) boschZamyadUpdated.setText("بوش زامیاد • دریافت تازه: " + new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
           setStatus("۱۹ پارامتر زنده بوش زامیاد دریافت شد");
+        } else if ("sb13_can_obd".equals(j.optString("profile"))) {
+          if (sb13CanUpdated != null) sb13CanUpdated.setText("آخرین دریافت پارامترهای CAN: " + new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
+          setStatus("پارامتر زندهٔ SB13 از CAN دریافت شد");
         } else {
           prideFrames++;
           setStatus("بسته پارامترهای زیمنس پراید دریافت شد: " + prideFrames);
@@ -2083,6 +2096,33 @@ public class MainActivity extends Activity {
         String message = j.optString("message", "نامشخص");
         if (message.equals("DTC_READ_OK")) {
           setStatus("خواندن خطاها با موفقیت انجام شد");
+        } else if (message.equals("DTC_CLEAR_OK")) {
+          setStatus("فرمان پاک‌کردن خطاها به ECU ارسال و پذیرفته شد");
+        } else if (message.equals("DTC_CLEAR_FAILED")) {
+          setStatus("پاک‌کردن خطاها ناموفق بود؛ ECU پاسخ مثبت نداد");
+        } else if (message.equals("OBD_CAN_CONNECTED_11BIT_500K")) {
+          setStatus("اتصال CAN برقرار شد • شناسهٔ ۱۱بیتی • سرعت ۵۰۰ کیلوبیت‌برثانیه");
+        } else if (message.equals("OBD_CAN_CONNECTED_29BIT_500K")) {
+          setStatus("اتصال CAN برقرار شد • شناسهٔ ۲۹بیتی • سرعت ۵۰۰ کیلوبیت‌برثانیه");
+        } else if (message.equals("OBD_CAN_CONNECTED_11BIT_250K")) {
+          setStatus("اتصال CAN برقرار شد • شناسهٔ ۱۱بیتی • سرعت ۲۵۰ کیلوبیت‌برثانیه");
+        } else if (message.equals("OBD_CAN_CONNECTED_29BIT_250K")) {
+          setStatus("اتصال CAN برقرار شد • شناسهٔ ۲۹بیتی • سرعت ۲۵۰ کیلوبیت‌برثانیه");
+        } else if (message.startsWith("CAN_PROBING_")) {
+          setStatus("در حال جست‌وجوی پاسخ ECU روی CAN: " + message.replace("CAN_PROBING_", ""));
+        } else if (message.equals("OBD_CAN_NO_RESPONSE")) {
+          setStatus("ECU به درخواست OBD-II عمومی پاسخ نداد؛ پشتیبانی این سرویس در SB13 تأیید نشده است");
+        } else if (message.equals("OBD_CAN_NOT_CONNECTED")) {
+          setStatus("ابتدا ECU را از راه CAN شناسایی و متصل کنید");
+        } else if (message.equals("OBD_CAN_DISCONNECTED")) {
+          setStatus("ارتباط CAN با ECU قطع شد");
+        } else if (message.equals("LIVE_REQUESTED")) {
+          setStatus("درخواست پارامترهای زنده ارسال شد؛ منتظر پاسخ ECU هستیم");
+        } else if (message.equals("DTC_READ_FAILED")) {
+          setStatus("خواندن خطاهای OBD-II ناموفق بود؛ پاسخ ECU دریافت نشد");
+        } else if (message.equals("DTC_CLEAR_OK_NO_CODES")) {
+          dtc.setText("خطایی در فهرست ثبت نشد.");
+          setStatus("خواندن خطاها موفق بود؛ خطایی ثبت نشده است");
         } else if (message.equals("DTC_READ_OK_NO_CODES")) {
           dtc.setText("هیچ خطایی در ECU ثبت نشده است.");
           setStatus("خواندن خطاها موفق بود؛ خطایی ثبت نشده");
