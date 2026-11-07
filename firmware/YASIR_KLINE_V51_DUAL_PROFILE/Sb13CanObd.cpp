@@ -377,7 +377,7 @@ static void emitPid(uint8_t pid) {
       snprintf(suffix, sizeof(suffix), "sb13_can_%02X_ma", pid);
       emitNumber(suffix, label, cd / 256.0f - 128.0f, "mA"); return;
     }
-    case 0x42: if (length < 3) return; emitNumber(id, "ولتاژ ECU", ab / 1000.0f, "V"); return;
+    case 0x42: if (length < 3) return; emitNumber(id, "ولتاژ باتری / تغذیه ECU", ab / 1000.0f, "V"); return;
     case 0x43: if (length < 3) return; emitNumber(id, "بار مطلق موتور", ab * 100.0f / 255.0f, "%"); return;
     case 0x44: if (length < 3) return; emitNumber(id, "نسبت هم‌ارزی سوخت و هوا (فرمان ECU)", ab / 32768.0f, "λ"); return;
     case 0x45: emitNumber(id, "موقعیت نسبی دریچه گاز", a * 100.0f / 255.0f, "%"); return;
