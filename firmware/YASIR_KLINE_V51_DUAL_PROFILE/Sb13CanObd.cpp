@@ -26,6 +26,7 @@ static uint8_t nextPid = 0;
 static uint8_t slowPidIndex = 0;
 static uint8_t fastCycleCount = 0;
 static bool extendedIds = false;
+static bool voltagePidFailureReported = false;
 
 static void sendStatus(const char *message) {
   // Mirror CAN diagnostics to the USB/PC serial monitor as well as the ESP link.
@@ -135,10 +136,11 @@ static bool receiveResponse(uint8_t expectedService, uint8_t *out,
 }
 
 static bool readService(uint8_t service, uint8_t pid, bool hasPid,
-                        uint8_t *data, uint16_t &length) {
+                        uint8_t *data, uint16_t &length,
+                        uint32_t timeoutMs = RESPONSE_TIMEOUT_MS) {
   length = 0;
   if (!sendRequest(service, pid, hasPid)) return false;
-  return receiveResponse((uint8_t)(service + 0x40), data, length);
+  return receiveResponse((uint8_t)(service + 0x40), data, length, timeoutMs);
 }
 static bool readSupportedPids(uint8_t basePid, uint32_t &mask) {
   uint8_t data[8] = {0};
@@ -150,6 +152,9 @@ static bool readSupportedPids(uint8_t basePid, uint32_t &mask) {
   return true;
 }
 static bool pidSupported(uint8_t pid) {
+  // Always probe module voltage directly. Some ECUs answer PID 0x42 even when
+  // their chained support bitmap omits it.
+  if (pid == 0x42) return true;
   if (pid == 0) return false;
   const uint8_t group = (uint8_t)((pid - 1) / 32);
   if (group >= 8 || !supportedPidMaskValid[group]) return false;
@@ -189,6 +194,7 @@ static bool tryConfig(uint8_t bitRate, bool useExtendedIds,
 
   connected = true;
   liveEnabled = true;
+  voltagePidFailureReported = false;
   nextPid = 0;
   slowPidIndex = 0;
   fastCycleCount = 0;
@@ -281,12 +287,29 @@ static void emitText(const char *id, const char *name, const char *value) {
   Serial2.print(F("\",\"value\":\"")); Serial2.print(value);
   Serial2.println(F("\",\"unit\":\"\",\"status\":\"تازه؛ استاندارد OBD-II\"}]}"));
 }
+static void emitUnavailable(const char *id, const char *name, const char *status) {
+  Serial2.print(F("{\"type\":\"parameters\",\"profile\":\"sb13_can_obd\",\"parameters\":[{\"id\":\""));
+  Serial2.print(id);
+  Serial2.print(F("\",\"name\":\"")); Serial2.print(name);
+  Serial2.print(F("\",\"value\":\"—\",\"unit\":\"V\",\"status\":\""));
+  Serial2.print(status);
+  Serial2.println(F("\"}]}"));
+}
 static void emitPid(uint8_t pid) {
   if (!pidSupported(pid)) return;
   uint8_t data[8] = {0};
   uint16_t length = 0;
-  if (!readService(0x01, pid, true, data, length) ||
-      length < 2 || data[0] != pid) return;
+  const bool received = readService(0x01, pid, true, data, length,
+                                    pid == 0x42 ? 220 : RESPONSE_TIMEOUT_MS);
+  if (!received || length < 2 || data[0] != pid) {
+    if (pid == 0x42 && !voltagePidFailureReported) {
+      voltagePidFailureReported = true;
+      emitUnavailable("sb13_can_42", "ولتاژ باتری / تغذیه ECU",
+                      "پاسخی از ECU به PID ولتاژ 0x42 دریافت نشد");
+    }
+    return;
+  }
+  if (pid == 0x42) voltagePidFailureReported = false;
 
   const uint8_t a = data[1];
   const uint8_t b = length > 2 ? data[2] : 0;
