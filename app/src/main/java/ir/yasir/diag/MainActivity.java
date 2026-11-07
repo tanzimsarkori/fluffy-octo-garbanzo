@@ -80,6 +80,8 @@ public class MainActivity extends Activity {
   int themeMode = 3;
   final HashMap<String, TextView> dynamicParameterValues = new HashMap<>();
   final HashMap<String, TextView> dynamicParameterNames = new HashMap<>();
+  final HashMap<String, TextView> dynamicParameterStatuses = new HashMap<>();
+  final HashMap<String, Integer> dynamicParameterRanks = new HashMap<>();
   TextView[] injectorValues = new TextView[5];
   TextView[] sparkValues = new TextView[4];
   TextView injectorAverage, dashRpm, dashCoolant, dashBattery, dashIntake, dashInjection, dashUpdated;
@@ -271,7 +273,7 @@ public class MainActivity extends Activity {
     actuatorSection = section("عملگرها");
     resetSection = section("ریست مقادیر سازگار یافته");
     chartSection = section("نمودارها");
-    dynamicParametersSection = section("پارامترهای زنده و قابل توسعه");
+    dynamicParametersSection = section("نمایشگر تعمیرگاهی • پارامترهای زنده");
     prideSiemensSection = section("ECU زیمنس پراید • ۳۵ پارامتر زنده");
     boschZamyadSection = section("ECU بوش زامیاد 7.9.7.1 • داده زنده آزمایشی");
     boschServiceSection = section("ECU بوش زامیاد 7.9.7.1 — خطاها و عملگرها");
@@ -523,9 +525,10 @@ public class MainActivity extends Activity {
     content.addView(text("نمودارهای زنده در نسخه بعدی اضافه می‌شوند؛ مقادیر عددی فعلاً در بخش پارامترها در دسترس‌اند.",16,false));
     back(home);
     content = dynamicParametersSection;
-    content.addView(text("پارامترهای زنده‌ای که ECU پاسخ می‌دهد در این فهرست نمایش داده می‌شوند. پشتیبانی هر پارامتر به ECU و استاندارد OBD-II وابسته است.",14,false));
+    content.addView(text("پارامترها با دریافت تازه به‌روزرسانی می‌شوند؛ فقط مقادیر پشتیبانی‌شده توسط ECU نمایش داده می‌شوند.",13,false));
     dynamicParameterList = new LinearLayout(this);
     dynamicParameterList.setOrientation(LinearLayout.VERTICAL);
+    dynamicParameterList.setPadding(0, dp(6), 0, 0);
     dynamicParametersSection.addView(dynamicParameterList);
     dynamicReturnTarget = home;
     button("بازگشت", () -> show(dynamicReturnTarget == null ? home : dynamicReturnTarget));
@@ -1467,7 +1470,10 @@ public class MainActivity extends Activity {
         bg.setCornerRadius(10);
         bg.setStroke(1, themeMode == 1 ? Color.rgb(67, 125, 144) : Color.rgb(31, 44, 112));
         layout.setBackground(bg);
-      } else if ("table-row".equals(tag) || "dynamic-row".equals(tag) || "pride-row".equals(tag)) {
+      } else if (tag instanceof String && ((String)tag).startsWith("dynamic-row:")) {
+        layout.setBackground(panelDrawable(cardBackground(), themeMode == 1 ?
+          Color.rgb(42, 107, 112) : Color.rgb(54, 76, 92), 12));
+      } else if ("table-row".equals(tag) || "pride-row".equals(tag)) {
         boolean alternate = (layout.getChildCount() % 2 == 0);
         layout.setBackgroundColor(rowBackground(alternate));
       }
@@ -1734,27 +1740,84 @@ public class MainActivity extends Activity {
       row.setOrientation(LinearLayout.HORIZONTAL);
       row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
       row.setGravity(Gravity.CENTER_VERTICAL);
-      row.setPadding(12, 10, 12, 10);
+      row.setPadding(dp(12), dp(9), dp(12), dp(9));
       row.setTag("dynamic-row");
-      row.setBackgroundColor((dynamicParameterList.getChildCount() % 2 == 0) ? Color.WHITE : Color.rgb(224,233,244));
-      TextView label = text(name == null ? id : name, 14, false);
+      row.setBackground(panelDrawable(cardBackground(), themeMode == 1 ?
+        Color.rgb(42, 107, 112) : Color.rgb(54, 76, 92), 12));
+      LinearLayout labelColumn = new LinearLayout(this);
+      labelColumn.setOrientation(LinearLayout.VERTICAL);
+      labelColumn.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+      TextView label = text(name == null ? id : name, 14, true);
       label.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-      row.addView(label, new LinearLayout.LayoutParams(0, -2, 2));
-      val = text("—", 16, true);
+      label.setPadding(dp(3), dp(1), dp(3), dp(1));
+      label.setTextColor(foregroundColor());
+      TextView state = text(statusText == null || statusText.trim().isEmpty() ? "در انتظار داده" : statusText, 10, false);
+      state.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+      state.setPadding(dp(3), dp(1), dp(3), dp(1));
+      state.setTextColor(themeMode == 1 ? Color.rgb(109, 223, 187) : Color.rgb(124, 157, 172));
+      labelColumn.addView(label);
+      labelColumn.addView(state);
+      row.addView(labelColumn, new LinearLayout.LayoutParams(0, -2, 1.55f));
+      val = text("—", 19, true);
       val.setTextColor(teal);
       val.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
-      row.addView(val, new LinearLayout.LayoutParams(0, -2, 3));
-      dynamicParameterList.addView(row, new LinearLayout.LayoutParams(-1, -2));
+      val.setPadding(dp(4), 0, dp(4), 0);
+      row.addView(val, new LinearLayout.LayoutParams(0, -2, 1.0f));
+      View accent = new View(this);
+      accent.setBackgroundColor(teal);
+      LinearLayout.LayoutParams accentParams = new LinearLayout.LayoutParams(dp(3), dp(34));
+      accentParams.setMargins(dp(8), 0, 0, 0);
+      row.addView(accent, accentParams);
+      int rank = dynamicParameterRank(id);
+      int insertion = 0;
+      while (insertion < dynamicParameterList.getChildCount()) {
+        Object existingTag = dynamicParameterList.getChildAt(insertion).getTag();
+        int existingRank = Integer.MAX_VALUE;
+        if (existingTag instanceof String && ((String)existingTag).startsWith("dynamic-row:")) {
+          try { existingRank = Integer.parseInt(((String)existingTag).substring(12)); }
+          catch (Exception ignored) {}
+        }
+        if (existingRank > rank) break;
+        insertion++;
+      }
+      row.setTag("dynamic-row:" + rank);
+      LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, -2);
+      rowParams.setMargins(0, 0, 0, dp(7));
+      dynamicParameterList.addView(row, insertion, rowParams);
       dynamicParameterValues.put(id, val);
       dynamicParameterNames.put(id, label);
+      dynamicParameterStatuses.put(id, state);
+      dynamicParameterRanks.put(id, rank);
     } else {
       TextView label = dynamicParameterNames.get(id);
       if (label != null && name != null && !name.trim().isEmpty()) label.setText(name);
+      TextView state = dynamicParameterStatuses.get(id);
+      if (state != null && statusText != null && !statusText.trim().isEmpty()) state.setText(statusText);
     }
     String shown = value == null || value.equals("null") ? "—" : value;
     if (unit != null && !unit.trim().isEmpty()) shown += " " + unit;
-    if (statusText != null && !statusText.trim().isEmpty()) shown += "  •  " + statusText;
     if (!shown.contentEquals(val.getText())) val.setText(shown);
+  }
+
+  int dynamicParameterRank(String id) {
+    if (id == null || !id.startsWith("sb13_can_") || id.length() < 2) return 1000;
+    String suffix = id.substring(id.length() - 2).toUpperCase(java.util.Locale.US);
+    if ("0C".equals(suffix)) return 10; // RPM
+    if ("11".equals(suffix)) return 20; // throttle A
+    if ("45".equals(suffix)) return 21; // relative throttle
+    if ("47".equals(suffix)) return 22;
+    if ("48".equals(suffix)) return 23;
+    if ("49".equals(suffix)) return 24;
+    if ("4A".equals(suffix)) return 25;
+    if ("4B".equals(suffix)) return 26;
+    if ("4C".equals(suffix)) return 27; // commanded throttle
+    if ("05".equals(suffix)) return 30; // coolant
+    if ("0F".equals(suffix)) return 31; // intake air
+    if ("0D".equals(suffix)) return 40; // speed
+    if ("0B".equals(suffix)) return 50; // MAP
+    if ("42".equals(suffix)) return 60; // battery / ECU supply voltage
+    try { return 100 + Integer.parseInt(suffix, 16); }
+    catch (Exception ignored) { return 1000; }
   }
 
 
