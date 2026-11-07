@@ -12,18 +12,19 @@ static const uint32_t REQUEST_ID_29 = 0x18DB33F1UL;
 static const uint32_t RESPONSE_BASE_29 = 0x18DAF100UL;
 static const uint32_t RESPONSE_MASK_29 = 0x1FFFFF00UL;
 static const uint32_t RESPONSE_TIMEOUT_MS = 900;
-static const uint32_t LIVE_PERIOD_MS = 350;
+static const uint32_t LIVE_PERIOD_MS = 180;
 
 static eXoCAN canBus(STD_ID_LEN, BR500K, PORTA_11_12_XCVR);
 static bool initialized = false;
 static bool connected = false;
 static bool liveEnabled = false;
-static bool havePids01 = false;
-static bool havePids40 = false;
-static uint32_t pids01 = 0;
-static uint32_t pids40 = 0;
+static uint32_t supportedPidMasks[8] = {0};
+static bool supportedPidMaskValid[8] = {false};
 static uint32_t lastLive = 0;
+static uint32_t lastSlowLive = 0;
 static uint8_t nextPid = 0;
+static uint8_t slowPidIndex = 0;
+static uint8_t fastCycleCount = 0;
 static bool extendedIds = false;
 
 static void sendStatus(const char *message) {
@@ -149,25 +150,35 @@ static bool readSupportedPids(uint8_t basePid, uint32_t &mask) {
   return true;
 }
 static bool pidSupported(uint8_t pid) {
-  uint8_t base = 0;
-  uint32_t mask = 0;
-  if (pid >= 0x01 && pid <= 0x20) {
-    if (!havePids01) return true;
-    base = 0x00; mask = pids01;
-  } else if (pid >= 0x41 && pid <= 0x60) {
-    if (!havePids40) return false;
-    base = 0x40; mask = pids40;
-  } else {
-    return false;
-  }
-  const uint8_t bitIndex = (uint8_t)(pid - (base + 1));
-  return (mask & ((uint32_t)1 << (31 - bitIndex))) != 0;
+  if (pid == 0) return false;
+  const uint8_t group = (uint8_t)((pid - 1) / 32);
+  if (group >= 8 || !supportedPidMaskValid[group]) return false;
+  const uint8_t bitIndex = (uint8_t)((pid - 1) % 32);
+  return (supportedPidMasks[group] & ((uint32_t)1 << (31 - bitIndex))) != 0;
 }
 
+static const char *fuelStatusText(uint8_t value) {
+  switch (value & 0x0F) {
+    case 1: return "حلقه‌باز: دمای موتور ناکافی";
+    case 2: return "حلقه‌باز: شرایط بار یا کاهش سرعت";
+    case 4: return "حلقه‌بسته: کنترل سوخت با سنسور اکسیژن";
+    case 8: return "حلقه‌باز: خطای سامانه";
+    case 16: return "حلقه‌باز: قطع موقت سوخت هنگام کاهش سرعت";
+    default: return "وضعیت سوخت نامشخص یا پشتیبانی‌نشده";
+  }
+}
+
+// SAE J1979 support maps are chained: bit 0 announces the next 0x20 PID block.
 static bool probeAtCurrentConfig() {
-  havePids01 = readSupportedPids(0x00, pids01);
-  if (!havePids01) return false;
-  havePids40 = readSupportedPids(0x40, pids40);
+  memset(supportedPidMasks, 0, sizeof(supportedPidMasks));
+  memset(supportedPidMaskValid, 0, sizeof(supportedPidMaskValid));
+  if (!readSupportedPids(0x00, supportedPidMasks[0])) return false;
+  supportedPidMaskValid[0] = true;
+  for (uint8_t group = 1; group < 8; ++group) {
+    if ((supportedPidMasks[group - 1] & 1U) == 0) break;
+    if (!readSupportedPids((uint8_t)(group * 0x20), supportedPidMasks[group])) break;
+    supportedPidMaskValid[group] = true;
+  }
   return true;
 }
 static bool tryConfig(uint8_t bitRate, bool useExtendedIds,
@@ -179,7 +190,10 @@ static bool tryConfig(uint8_t bitRate, bool useExtendedIds,
   connected = true;
   liveEnabled = true;
   nextPid = 0;
+  slowPidIndex = 0;
+  fastCycleCount = 0;
   lastLive = millis();
+  lastSlowLive = millis();
   if (useExtendedIds)
     sendStatus(bitRate == BR500K ? "OBD_CAN_CONNECTED_29BIT_500K"
                                  : "OBD_CAN_CONNECTED_29BIT_250K");
@@ -191,7 +205,7 @@ static bool tryConfig(uint8_t bitRate, bool useExtendedIds,
 static void probe() {
   connected = false;
   liveEnabled = false;
-  havePids01 = havePids40 = false;
+  memset(supportedPidMaskValid, 0, sizeof(supportedPidMaskValid));
 
   if (tryConfig(BR500K, false, "CAN_PROBING_11BIT_500K")) return;
   if (tryConfig(BR500K, true,  "CAN_PROBING_29BIT_500K")) return;
@@ -200,7 +214,7 @@ static void probe() {
 
   connected = false;
   liveEnabled = false;
-  havePids01 = havePids40 = false;
+  memset(supportedPidMaskValid, 0, sizeof(supportedPidMaskValid));
   sendStatus("OBD_CAN_NO_RESPONSE");
 }
 
@@ -251,6 +265,22 @@ static void clearDtc() {
     sendStatus("DTC_CLEAR_FAILED");
 }
 
+static void emitNumber(const char *id, const char *name, float value,
+                       const char *unit) {
+  Serial2.print(F("{\"type\":\"parameters\",\"profile\":\"sb13_can_obd\",\"parameters\":[{\"id\":\""));
+  Serial2.print(id);
+  Serial2.print(F("\",\"name\":\"")); Serial2.print(name);
+  Serial2.print(F("\",\"value\":")); Serial2.print(value, 2);
+  Serial2.print(F(",\"unit\":\"")); Serial2.print(unit);
+  Serial2.println(F("\",\"status\":\"تازه؛ استاندارد OBD-II\"}]}"));
+}
+static void emitText(const char *id, const char *name, const char *value) {
+  Serial2.print(F("{\"type\":\"parameters\",\"profile\":\"sb13_can_obd\",\"parameters\":[{\"id\":\""));
+  Serial2.print(id);
+  Serial2.print(F("\",\"name\":\"")); Serial2.print(name);
+  Serial2.print(F("\",\"value\":\"")); Serial2.print(value);
+  Serial2.println(F("\",\"unit\":\"\",\"status\":\"تازه؛ استاندارد OBD-II\"}]}"));
+}
 static void emitPid(uint8_t pid) {
   if (!pidSupported(pid)) return;
   uint8_t data[8] = {0};
@@ -260,39 +290,118 @@ static void emitPid(uint8_t pid) {
 
   const uint8_t a = data[1];
   const uint8_t b = length > 2 ? data[2] : 0;
-  const char *name = "";
-  const char *unit = "";
-  float value = 0.0f;
+  const uint16_t ab = (uint16_t)a * 256U + b;
+  char id[24];
+  snprintf(id, sizeof(id), "sb13_can_%02X", pid);
 
   switch (pid) {
-    case 0x05:
-      name = "دمای آب"; unit = "°C"; value = (int)a - 40; break;
-    case 0x0B:
-      name = "فشار منیفولد"; unit = "kPa"; value = a; break;
-    case 0x0C:
-      if (length < 3) return;
-      name = "دور موتور"; unit = "rpm"; value = ((uint16_t)a * 256U + b) / 4.0f; break;
-    case 0x0D:
-      name = "سرعت خودرو"; unit = "km/h"; value = a; break;
-    case 0x0F:
-      name = "دمای هوای ورودی"; unit = "°C"; value = (int)a - 40; break;
-    case 0x11:
-      name = "موقعیت دریچه گاز"; unit = "%"; value = a * 100.0f / 255.0f; break;
-    case 0x42:
-      if (length < 3) return;
-      name = "ولتاژ ECU"; unit = "V"; value = ((uint16_t)a * 256U + b) / 1000.0f; break;
-    default:
+    case 0x01:
+      if (length < 5) return;
+      snprintf(id, sizeof(id), "sb13_can_%02X_mil", pid);
+      emitText(id, "چراغ اخطار موتور (MIL)", (a & 0x80) ? "روشن" : "خاموش");
+      snprintf(id, sizeof(id), "sb13_can_%02X_count", pid);
+      emitNumber(id, "تعداد خطاهای موتور گزارش‌شده توسط ECU", (float)(a & 0x7F), "کد");
       return;
+    case 0x03:
+      if (length < 3) return;
+      emitText("sb13_can_03_fuel1", "وضعیت سامانه سوخت ۱", fuelStatusText(a));
+      emitText("sb13_can_03_fuel2", "وضعیت سامانه سوخت ۲", fuelStatusText(b));
+      return;
+    case 0x04: emitNumber(id, "بار محاسبه‌شده موتور", a * 100.0f / 255.0f, "%"); return;
+    case 0x05: emitNumber(id, "دمای مایع خنک‌کننده موتور", (int)a - 40, "°C"); return;
+    case 0x06: case 0x07: case 0x08: case 0x09: {
+      const char *names[] = {"تصحیح کوتاه‌مدت سوخت بانک ۱", "تصحیح بلندمدت سوخت بانک ۱",
+                             "تصحیح کوتاه‌مدت سوخت بانک ۲", "تصحیح بلندمدت سوخت بانک ۲"};
+      emitNumber(id, names[pid - 0x06], a * 100.0f / 128.0f - 100.0f, "%"); return;
+    }
+    case 0x0A: emitNumber(id, "فشار سوخت", a * 3.0f, "kPa"); return;
+    case 0x0B: emitNumber(id, "فشار مطلق منیفولد (MAP)", a, "kPa"); return;
+    case 0x0C: if (length < 3) return; emitNumber(id, "دور موتور", ab / 4.0f, "rpm"); return;
+    case 0x0D: emitNumber(id, "سرعت خودرو", a, "km/h"); return;
+    case 0x0E: emitNumber(id, "آوانس جرقه", a / 2.0f - 64.0f, "°"); return;
+    case 0x0F: emitNumber(id, "دمای هوای ورودی موتور", (int)a - 40, "°C"); return;
+    case 0x10: if (length < 3) return; emitNumber(id, "دبی جرمی هوای ورودی (MAF)", ab / 100.0f, "g/s"); return;
+    case 0x11: emitNumber(id, "موقعیت مطلق دریچه گاز A", a * 100.0f / 255.0f, "%"); return;
+    case 0x14: case 0x15: case 0x16: case 0x17:
+    case 0x18: case 0x19: case 0x1A: case 0x1B: {
+      if (length < 3) return;
+      const uint8_t sensor = (uint8_t)(pid - 0x14);
+      const uint8_t bank = sensor / 2 + 1;
+      const uint8_t position = sensor % 2 + 1;
+      char label[48]; char suffix[24];
+      snprintf(label, sizeof(label), "ولتاژ سنسور اکسیژن بانک %u سنسور %u", bank, position);
+      snprintf(suffix, sizeof(suffix), "sb13_can_%02X_v", pid);
+      emitNumber(suffix, label, a / 200.0f, "V");
+      snprintf(label, sizeof(label), "تصحیح سوخت سنسور اکسیژن بانک %u سنسور %u", bank, position);
+      snprintf(suffix, sizeof(suffix), "sb13_can_%02X_trim", pid);
+      emitNumber(suffix, label, b * 100.0f / 128.0f - 100.0f, "%"); return;
+    }
+    case 0x1F: if (length < 3) return; emitNumber(id, "زمان کارکرد موتور از زمان روشن‌شدن", ab, "s"); return;
+    case 0x21: if (length < 3) return; emitNumber(id, "مسافت طی‌شده با چراغ چک روشن", ab, "km"); return;
+    case 0x23: if (length < 3) return; emitNumber(id, "فشار ریل سوخت", ab * 10.0f, "kPa"); return;
+    case 0x2C: emitNumber(id, "فرمان بازچرخانی گاز اگزوز (EGR)", a * 100.0f / 255.0f, "%"); return;
+    case 0x2D: emitNumber(id, "خطای بازچرخانی گاز اگزوز (EGR)", ((int)a - 128) * 100.0f / 128.0f, "%"); return;
+    case 0x2E: emitNumber(id, "فرمان شیر تخلیه بخار بنزین", a * 100.0f / 255.0f, "%"); return;
+    case 0x2F: emitNumber(id, "سطح سوخت باک", a * 100.0f / 255.0f, "%"); return;
+    case 0x30: emitNumber(id, "تعداد گرم‌شدن موتور پس از پاک‌کردن خطا", a, "بار"); return;
+    case 0x31: if (length < 3) return; emitNumber(id, "مسافت طی‌شده از پاک‌کردن خطاها", ab, "km"); return;
+    case 0x32: if (length < 3) return; emitNumber(id, "فشار بخار سامانه سوخت", ab / 4.0f - 8192.0f, "Pa"); return;
+    case 0x33: emitNumber(id, "فشار جو", a, "kPa"); return;
+    case 0x24: case 0x25: case 0x26: case 0x27:
+    case 0x28: case 0x29: case 0x2A: case 0x2B: {
+      if (length < 5) return;
+      const uint8_t sensor = (uint8_t)(pid - 0x24);
+      const uint8_t bank = sensor / 2 + 1;
+      const uint8_t position = sensor % 2 + 1;
+      const uint16_t cd = (uint16_t)data[3] * 256U + data[4];
+      char label[48]; char suffix[24];
+      snprintf(label, sizeof(label), "لامبدای سنسور اکسیژن پهن‌باند بانک %u سنسور %u", bank, position);
+      snprintf(suffix, sizeof(suffix), "sb13_can_%02X_lambda", pid);
+      emitNumber(suffix, label, ab / 32768.0f, "λ");
+      snprintf(label, sizeof(label), "ولتاژ سنسور اکسیژن بانک %u سنسور %u", bank, position);
+      snprintf(suffix, sizeof(suffix), "sb13_can_%02X_v", pid);
+      emitNumber(suffix, label, cd / 8192.0f, "V"); return;
+    }
+    case 0x34: case 0x35: case 0x36: case 0x37:
+    case 0x38: case 0x39: case 0x3A: case 0x3B: {
+      if (length < 5) return;
+      const uint8_t sensor = (uint8_t)(pid - 0x34);
+      const uint8_t bank = sensor / 2 + 1;
+      const uint8_t position = sensor % 2 + 1;
+      const uint16_t cd = (uint16_t)data[3] * 256U + data[4];
+      char label[48]; char suffix[24];
+      snprintf(label, sizeof(label), "لامبدای سنسور اکسیژن بانک %u سنسور %u", bank, position);
+      snprintf(suffix, sizeof(suffix), "sb13_can_%02X_lambda", pid);
+      emitNumber(suffix, label, ab / 32768.0f, "λ");
+      snprintf(label, sizeof(label), "جریان سنسور اکسیژن بانک %u سنسور %u", bank, position);
+      snprintf(suffix, sizeof(suffix), "sb13_can_%02X_ma", pid);
+      emitNumber(suffix, label, cd / 256.0f - 128.0f, "mA"); return;
+    }
+    case 0x42: if (length < 3) return; emitNumber(id, "ولتاژ ECU", ab / 1000.0f, "V"); return;
+    case 0x43: if (length < 3) return; emitNumber(id, "بار مطلق موتور", ab * 100.0f / 255.0f, "%"); return;
+    case 0x44: if (length < 3) return; emitNumber(id, "نسبت هم‌ارزی سوخت و هوا (فرمان ECU)", ab / 32768.0f, "λ"); return;
+    case 0x45: emitNumber(id, "موقعیت نسبی دریچه گاز", a * 100.0f / 255.0f, "%"); return;
+    case 0x46: emitNumber(id, "دمای هوای محیط", (int)a - 40, "°C"); return;
+    case 0x47: emitNumber(id, "موقعیت مطلق دریچه گاز B", a * 100.0f / 255.0f, "%"); return;
+    case 0x48: emitNumber(id, "موقعیت مطلق دریچه گاز C", a * 100.0f / 255.0f, "%"); return;
+    case 0x49: emitNumber(id, "موقعیت پدال گاز D", a * 100.0f / 255.0f, "%"); return;
+    case 0x4A: emitNumber(id, "موقعیت پدال گاز E", a * 100.0f / 255.0f, "%"); return;
+    case 0x4B: emitNumber(id, "موقعیت پدال گاز F", a * 100.0f / 255.0f, "%"); return;
+    case 0x4C: emitNumber(id, "موقعیت درخواستی دریچه گاز برقی", a * 100.0f / 255.0f, "%"); return;
+    case 0x4D: if (length < 3) return; emitNumber(id, "زمان کارکرد با چراغ چک روشن", ab, "min"); return;
+    case 0x4E: if (length < 3) return; emitNumber(id, "زمان پس از پاک‌کردن خطاها", ab, "min"); return;
+    case 0x5C: emitNumber(id, "دمای روغن موتور", (int)a - 40, "°C"); return;
+    default: return;
   }
-
-  Serial2.print(F("{\"type\":\"parameters\",\"profile\":\"sb13_can_obd\",\"parameters\":[{\"id\":\"sb13_can_"));
-  if (pid < 16) Serial2.print('0');
-  Serial2.print(pid, HEX);
-  Serial2.print(F("\",\"name\":\"")); Serial2.print(name);
-  Serial2.print(F("\",\"value\":")); Serial2.print(value, 1);
-  Serial2.print(F(",\"unit\":\"")); Serial2.print(unit);
-  Serial2.println(F("\",\"status\":\"تازه\"}]}"));
 }
+
+static const uint8_t LIVE_PIDS[] = {
+  0x01,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,0x11,
+  0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,0x1F,0x21,0x23,
+  0x24,0x25,0x26,0x27,0x28,0x29,0x2A,0x2B,0x2C,0x2D,0x2E,0x2F,0x30,0x31,0x32,0x33,
+  0x34,0x35,0x36,0x37,0x38,0x39,0x3A,0x3B,
+  0x42,0x43,0x44,0x45,0x46,0x47,0x48,0x49,0x4A,0x4B,0x4C,0x4D,0x4E,0x5C
+};
 
 void initialize() {
   configureCan(BR500K, false);
@@ -311,7 +420,10 @@ void handleKey(char key) {
       }
       liveEnabled = true;
       nextPid = 0;
+      slowPidIndex = 0;
+      fastCycleCount = 0;
       lastLive = millis() - LIVE_PERIOD_MS;
+      lastSlowLive = millis();
       sendStatus("LIVE_REQUESTED");
       break;
     case '0':
@@ -326,9 +438,25 @@ void handleKey(char key) {
 void poll() {
   if (!initialized || !connected || !liveEnabled ||
       (uint32_t)(millis() - lastLive) < LIVE_PERIOD_MS) return;
-  static const uint8_t pids[] = {0x0C, 0x05, 0x0F, 0x0D, 0x0B, 0x11, 0x42};
+  // Keep the driver-relevant values fresh, while cycling through every other
+  // supported standard PID in the background.
+  static const uint8_t fastPids[] = {0x0C, 0x05, 0x0D, 0x0F, 0x11, 0x45, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x42};
+  static const uint8_t slowPids[] = {
+    0x01,0x03,0x04,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0E,0x10,
+    0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,0x1F,0x21,0x23,
+    0x24,0x25,0x26,0x27,0x28,0x29,0x2A,0x2B,0x2C,0x2D,0x2E,0x2F,0x30,0x31,0x32,0x33,
+    0x34,0x35,0x36,0x37,0x38,0x39,0x3A,0x3B,0x43,0x44,0x46,0x4D,0x4E,0x5C
+  };
   lastLive = millis();
-  emitPid(pids[nextPid]);
-  nextPid = (uint8_t)((nextPid + 1) % (sizeof(pids) / sizeof(pids[0])));
+  if (++fastCycleCount >= 6 && (uint32_t)(millis() - lastSlowLive) >= 250) {
+    fastCycleCount = 0;
+    lastSlowLive = millis();
+    emitPid(slowPids[slowPidIndex]);
+    slowPidIndex = (uint8_t)((slowPidIndex + 1) % (sizeof(slowPids) / sizeof(slowPids[0])));
+    return;
+  }
+  emitPid(fastPids[nextPid]);
+  nextPid = (uint8_t)((nextPid + 1) % (sizeof(fastPids) / sizeof(fastPids[0])));
 }
 }
+
