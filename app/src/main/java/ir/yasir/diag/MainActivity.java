@@ -311,7 +311,7 @@ public class MainActivity extends Activity {
     addQuickCard(quickGrid, "داده‌های زنده", "مشاهده پارامترهای لحظه‌ای", "▥", Color.rgb(0, 214, 133), () -> {
       if ("زیمنس پراید".equals(selectedEcu)) show(prideSiemensSection);
       else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) show(boschServiceSection);
-      else if ("SB13".equals(selectedEcu)) { dynamicReturnTarget = sb13CanSection; show(dynamicParametersSection); send("!6"); }
+      else if ("SB13".equals(selectedEcu)) { dynamicReturnTarget = sb13CanSection; show(dynamicParametersSection); prepareSb13Live(); }
       else show(dashboardSection);
     });
     addQuickCard(quickGrid, "تست عملگرها", "تست‌های تعمیرگاهی", "⚙", Color.rgb(255, 176, 0), () -> show("بوش زامیاد 7.9.7.1".equals(selectedEcu) ? boschServiceSection : actuatorSection));
@@ -340,7 +340,7 @@ public class MainActivity extends Activity {
     button("خواندن پارامترهای زنده استاندارد", () -> {
       dynamicReturnTarget = sb13CanSection;
       show(dynamicParametersSection);
-      send("!6");
+      prepareSb13Live();
     });
     button("قطع ارتباط CAN", () -> send("!0"));
     back(ecuSelectionSection);
@@ -1729,6 +1729,12 @@ public class MainActivity extends Activity {
     if ("tpsRaw".equals(key)) return "بایت خام TPS (در انتظار شناسایی)";
     if ("connected".equals(key)) return "وضعیت اتصال ECU";
     return key;
+  }
+
+  void prepareSb13Live() {
+    upsertDynamicParameter("sb13_can_42", "ولتاژ باتری / تغذیه ECU", "—", "V",
+      "در حال درخواست مستقیم از ECU • PID 0x42");
+    send("!6");
   }
 
   void upsertDynamicParameter(String id, String name, String value, String unit, String statusText) {
