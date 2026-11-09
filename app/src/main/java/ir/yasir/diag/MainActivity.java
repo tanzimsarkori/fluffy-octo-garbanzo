@@ -66,6 +66,7 @@ public class MainActivity extends Activity {
   TextView boschZamyadUpdated;
   final HashMap<String, TextView> boschZamyadValues = new HashMap<>();
   volatile String pendingProfileCommand = "";
+  volatile String pendingPostConnectCommand = "";
   final LinearLayout[] prideGroupSections = new LinearLayout[4];
   final String[] prideCurrentValues = new String[35];
   final String[] pridePendingValues = new String[35];
@@ -508,11 +509,7 @@ public class MainActivity extends Activity {
     content.addView(text("نمودارهای زنده در نسخه بعدی اضافه می‌شوند؛ مقادیر عددی فعلاً در بخش پارامترها در دسترس‌اند.",16,false));
     back(home);
     content = dynamicParametersSection;
-    styleBlueWorkshopPage(dynamicParametersSection);
-    blueWorkshopHeader("یاسر دیاگ", "داده‌های زنده • SB13 CAN");
-    TextView liveIntro = text("پارامترهای پاسخ‌داده‌شده از ECU", 12, false);
-    liveIntro.setTextColor(Color.rgb(190, 220, 255));
-    content.addView(liveIntro);
+    content.addView(text("عظام SB13 • پارامترهای زنده CAN", 18, true));
     dynamicParameterList = new LinearLayout(this);
     dynamicParameterList.setOrientation(LinearLayout.VERTICAL);
     dynamicParameterList.setPadding(0, dp(6), 0, 0);
@@ -521,30 +518,9 @@ public class MainActivity extends Activity {
     blueWorkshopRow(content, "بازگشت", "‹", () -> show(dynamicReturnTarget == null ? home : dynamicReturnTarget));
 
     content = prideSiemensSection;
-    content.addView(text("پروفایل زیمنس پراید • نمایش تعمیرگاهی ۳۵ پارامتر", 18, true));
-    content.addView(text("مقادیر فقط پس از دریافت واقعی از ECU نمایش داده می‌شوند؛ موارد بدون پاسخ پنهان می‌مانند.", 13, false));
-    prideSiemensUpdated = text("در انتظار اولین دوره داده • ۰/۳۵", 14, true);
+    prideSiemensUpdated = text("آماده دریافت داده از ECU • ۰/۳۵", 12, false);
     content.addView(prideSiemensUpdated);
-    content.addView(text("نمایش تعمیرگاهی مرتب • نام پارامتر، مقدار و واحد دریافتی از ECU", 12, false));
 
-    android.widget.HorizontalScrollView prideTabsScroll = new android.widget.HorizontalScrollView(this);
-    prideTabsScroll.setHorizontalScrollBarEnabled(false);
-    LinearLayout prideTabs = new LinearLayout(this);
-    prideTabs.setOrientation(LinearLayout.HORIZONTAL);
-    prideTabs.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-    String[] tabTitles = {"همه", "سنسورها", "سوخت", "جرقه", "وضعیت"};
-    for (int tab = 0; tab < tabTitles.length; tab++) {
-      final int groupIndex = tab - 1;
-      Button tabButton = new Button(this);
-      tabButton.setText(tabTitles[tab]);
-      tabButton.setTextSize(12);
-      tabButton.setAllCaps(false);
-      tabButton.setMinHeight(dp(38));
-      tabButton.setOnClickListener(v -> showPrideGroup(groupIndex));
-      prideTabs.addView(tabButton, new LinearLayout.LayoutParams(-2, dp(46)));
-    }
-    prideTabsScroll.addView(prideTabs);
-    prideSiemensSection.addView(prideTabsScroll);
     prideGroupSections[0] = new LinearLayout(this);
     prideGroupSections[0].setOrientation(LinearLayout.VERTICAL);
     prideGroupSections[0].setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
@@ -606,7 +582,7 @@ public class MainActivity extends Activity {
     prideSiemensValues.put("emax_pride_fan_status", prideCompactRow("وضعیت فن خنک‌کننده"));
     content = prideSiemensSection;
     back(parametersMenu);
-    showPrideGroup(0);
+    showPrideGroup(-1);
 
     content = boschServiceSection;
     content.addView(text("Bosch زامیاد 7.9.7.1 • فریم‌ور ترکیبی V51", 17, true));
@@ -644,8 +620,7 @@ public class MainActivity extends Activity {
 
     content = boschZamyadSection;
     content.addView(text("پروفایل مستقل زامیاد • Bosch 7.9.7.1", 18, true));
-    content.addView(text("۱۹ پارامتر اختصاصی Bosch Zamyad 7.9.7.1 از همان اتصال Wi-Fi دریافت می‌شوند. فرمول‌های مرجع هنوز نیازمند تطبیق با مقادیر واقعی خودرو هستند.", 13, false));
-    boschZamyadUpdated = text("در انتظار اولین بسته پارامتر از STM32", 14, true);
+    boschZamyadUpdated = text("آماده دریافت داده از ECU بوش", 12, false);
     content.addView(boschZamyadUpdated);
     String[][] boschRows = {
       {"bosch_zamyad_fault_count","شمارنده خطا (خام)"},
@@ -669,8 +644,7 @@ public class MainActivity extends Activity {
       {"bosch_zamyad_o2_voltage","ولتاژ سنسور اکسیژن"}
     };
     for (String[] row : boschRows) boschZamyadValues.put(row[0], prideCompactRow(row[1]));
-    button("۶ • درخواست مجدد ۱۹ پارامتر", () -> sendBoschKey('6'));
-    button("بازگشت به تست‌های بوش", () -> show(boschServiceSection));
+    back(ecuSelectionSection);
 
     content = root;
     addBottomNavigation(appShell);
@@ -706,7 +680,7 @@ public class MainActivity extends Activity {
     row.setPadding(dp(12), dp(5), dp(12), dp(5));
     row.setTag("pride-row");
     row.setBackground(panelDrawable(cardBackground(), Color.rgb(53, 91, 105), 10));
-    TextView value = text("", 18, true);
+    TextView value = text("—", 18, true);
     value.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
     value.setTextColor(teal);
     row.addView(value, new LinearLayout.LayoutParams(0, dp(48), 0.42f));
@@ -717,7 +691,7 @@ public class MainActivity extends Activity {
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
     lp.setMargins(0, 0, 0, dp(7));
     content.addView(row, lp);
-    row.setVisibility(View.GONE);
+    row.setVisibility(View.VISIBLE);
     return value;
   }
 
@@ -725,26 +699,14 @@ public class MainActivity extends Activity {
     if (valueView == null) return;
     View row = (View)valueView.getParent();
     String value = shown == null ? "" : shown.trim();
-    if (value.isEmpty() || value.equals("—") || value.equalsIgnoreCase("null")) {
-      row.setVisibility(View.GONE);
-      return;
-    }
+    if (value.isEmpty() || value.equalsIgnoreCase("null")) value = "—";
     valueView.setText(value);
     row.setVisibility(View.VISIBLE);
   }
 
   void refreshPrideGroupHeaders() {
     for (LinearLayout group : prideGroupSections) {
-      if (group == null || group.getChildCount() == 0) continue;
-      boolean hasValue = false;
-      for (int i = 1; i < group.getChildCount(); i++) {
-        View child = group.getChildAt(i);
-        if ("pride-row".equals(child.getTag()) && child.getVisibility() == View.VISIBLE) {
-          hasValue = true;
-          break;
-        }
-      }
-      group.getChildAt(0).setVisibility(hasValue ? View.VISIBLE : View.GONE);
+      if (group != null && group.getChildCount() > 0) group.getChildAt(0).setVisibility(View.VISIBLE);
     }
   }
 
@@ -1416,39 +1378,73 @@ public class MainActivity extends Activity {
     }
   }
 
+  void startSelectedEcu(String profile, String liveCommand, LinearLayout target) {
+    preferences.edit().putString("yasir.lastBrand", selectedBrand)
+        .putString("yasir.lastEcu", selectedEcu).putString("yasir.lastScreen", "ecuSelection").apply();
+    diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
+    show(target);
+    if (!tcpLive || socket == null || socket.isClosed()) {
+      pendingProfileCommand = profile;
+      pendingPostConnectCommand = liveCommand == null ? "" : liveCommand;
+      scanAfterTcpConnect = true;
+      setStatus("در حال اتصال به ECU انتخاب‌شده");
+      connect();
+      return;
+    }
+    sendSelectedEcuSequence(profile, liveCommand);
+  }
+
+  void sendSelectedEcuSequence(final String profile, final String liveCommand) {
+    new Thread(() -> {
+      try {
+        synchronized (this) {
+          if (out == null || socket == null || socket.isClosed()) throw new IOException("اتصال TCP برقرار نیست");
+          out.write((profile + "\n").getBytes("US-ASCII"));
+          out.flush();
+        }
+        Thread.sleep(220);
+        synchronized (this) {
+          if (out == null || socket == null || socket.isClosed()) return;
+          out.write("!1\n".getBytes("US-ASCII"));
+          out.flush();
+        }
+        if (liveCommand != null && !liveCommand.isEmpty()) {
+          Thread.sleep(1200);
+          synchronized (this) {
+            if (out == null || socket == null || socket.isClosed()) return;
+            out.write((liveCommand + "\n").getBytes("US-ASCII"));
+            out.flush();
+          }
+        }
+        setStatus("فرمان اتصال پروفایل " + selectedEcu + " ارسال شد");
+      } catch (Exception e) {
+        setStatus("اتصال به ECU ناموفق: " + e.getMessage());
+      }
+    }, "yasir-selected-ecu-connect").start();
+  }
+
   void chooseEcu(String ecu) {
     selectedEcu = ecu;
     if ("بوش زامیاد 7.9.7.1".equals(ecu)) {
-      diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
-      requestProfileCommand("!PROFILE:BOSCH");
-      show(boschServiceSection);
-      setStatus("پروفایل بوش زامیاد انتخاب شد؛ اتصال ECU را بزنید");
+      startSelectedEcu("!PROFILE:BOSCH", "!6", boschZamyadSection);
       return;
     }
     if ("SB13".equals(ecu)) {
-      diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: عظام SB13 بنزینی");
-      requestProfileCommand("!PROFILE:SB13_CAN");
-      show(sb13CanSection);
-      setStatus("پروفایل SB13 انتخاب شد؛ از همین صفحه اتصال خودکار CAN را اجرا کنید");
+      seedSb13ParameterRows();
+      startSelectedEcu("!PROFILE:SB13_CAN", "!6", dynamicParametersSection);
       return;
     }
     if ("زیمنس پراید".equals(ecu)) {
-      requestProfileCommand("!PROFILE:SIEMENS");
-      diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
-      show(prideSiemensSection);
-      setStatus("ECU زیمنس پراید انتخاب شد • ۳۵ پارامتر زنده");
+      startSelectedEcu("!PROFILE:SIEMENS", "", prideSiemensSection);
       return;
     }
     if ("زیمنس SIM2K-34VR".equals(ecu)) {
-      requestProfileCommand("!PROFILE:SIEMENS");
-      diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
-      show(diagnosticMenu);
-      setStatus("پروفایل فعال انتخاب شد: " + selectedBrand + " / " + selectedEcu);
+      startSelectedEcu("!PROFILE:SIEMENS", "", diagnosticMenu);
       return;
     }
     new AlertDialog.Builder(this)
       .setTitle(ecu)
-      .setMessage("این ECU در فهرست انتخاب ثبت شد، اما پروفایل ارتباطی و فرمول‌های اختصاصی آن هنوز به‌صورت عملیاتی تأیید نشده‌اند. برای جلوگیری از ارسال فرمان اشتباه، فعلاً تست، پاک‌کردن خطا و فرمان‌های ECU برای این انتخاب فعال نمی‌شوند.")
+      .setMessage("این ECU در کاتالوگ وجود دارد، اما هنوز پروفایل ارتباطی تأییدشده ندارد. برای اتصال باید پروتکل همین مدل ECU به برنامه افزوده شود.")
       .setPositiveButton("متوجه شدم", (d,w) -> show(ecuSelectionSection))
       .show();
   }
@@ -2017,7 +2013,13 @@ public class MainActivity extends Activity {
                 if (autoDetectionActive) {
                   setStatus("ارتباط دستگاه برقرار شد؛ مرحلهٔ اول شناسایی ECU شروع شد");
                   armAutomaticDetectionTimeout(autoDetectionStage, autoDetectionToken);
-                } else setStatus("ارتباط دستگاه برقرار شد؛ جست‌وجوی CAN شروع شد");
+                } else {
+                  String followUp = pendingPostConnectCommand;
+                  pendingPostConnectCommand = "";
+                  if (followUp != null && !followUp.isEmpty())
+                    ui.postDelayed(() -> { if (tcpLive) send(followUp); }, 1200);
+                  setStatus("ارتباط دستگاه برقرار شد؛ اتصال ECU انتخاب‌شده آغاز شد");
+                }
               }
               scanAfterTcpConnect = false;
             }, 520);
@@ -2085,9 +2087,57 @@ public class MainActivity extends Activity {
     return key;
   }
 
+  void seedSb13ParameterRows() {
+    if (dynamicParameterList == null || dynamicParameterList.getChildCount() > 0) return;
+    String[][] rows = {
+      {"sb13_can_42","ولتاژ باتری / تغذیه ECU","V"},
+      {"sb13_can_0C","دور موتور","rpm"},
+      {"sb13_can_0D","سرعت خودرو","km/h"},
+      {"sb13_can_05","دمای آب موتور","°C"},
+      {"sb13_can_0F","دمای هوای ورودی","°C"},
+      {"sb13_can_0B","فشار منیفولد MAP","kPa"},
+      {"sb13_can_04","بار محاسبه‌شده موتور","%"},
+      {"sb13_can_11","موقعیت دریچه گاز A","%"},
+      {"sb13_can_45","موقعیت نسبی دریچه گاز","%"},
+      {"sb13_can_47","موقعیت دریچه گاز B","%"},
+      {"sb13_can_48","موقعیت دریچه گاز C","%"},
+      {"sb13_can_49","موقعیت پدال گاز D","%"},
+      {"sb13_can_4A","موقعیت پدال گاز E","%"},
+      {"sb13_can_4B","موقعیت پدال گاز F","%"},
+      {"sb13_can_4C","موقعیت درخواستی دریچه برقی","%"},
+      {"sb13_can_0E","آوانس جرقه","°"},
+      {"sb13_can_10","دبی هوای ورودی MAF","g/s"},
+      {"sb13_can_0A","فشار سوخت","kPa"},
+      {"sb13_can_06","تصحیح کوتاه‌مدت سوخت بانک ۱","%"},
+      {"sb13_can_07","تصحیح بلندمدت سوخت بانک ۱","%"},
+      {"sb13_can_08","تصحیح کوتاه‌مدت سوخت بانک ۲","%"},
+      {"sb13_can_09","تصحیح بلندمدت سوخت بانک ۲","%"},
+      {"sb13_can_2F","سطح سوخت باک","%"},
+      {"sb13_can_2C","فرمان EGR","%"},
+      {"sb13_can_2E","فرمان شیر بخار بنزین","%"},
+      {"sb13_can_01_mil","چراغ اخطار موتور MIL",""},
+      {"sb13_can_01_count","تعداد خطاهای موتور ECU","کد"},
+      {"sb13_can_03_fuel1","وضعیت سامانه سوخت ۱",""},
+      {"sb13_can_03_fuel2","وضعیت سامانه سوخت ۲",""},
+      {"sb13_can_1C","استاندارد عیب‌یابی ECU",""},
+      {"sb13_can_1F","زمان کارکرد موتور","s"},
+      {"sb13_can_21","مسافت با چراغ چک روشن","km"},
+      {"sb13_can_31","مسافت از پاک‌کردن خطاها","km"},
+      {"sb13_can_43","بار مطلق موتور","%"},
+      {"sb13_can_44","نسبت سوخت و هوای درخواستی ECU","λ"},
+      {"sb13_can_5C","دمای روغن موتور","°C"},
+      {"sb13_can_61","گشتاور درخواستی راننده","%"},
+      {"sb13_can_62","گشتاور واقعی موتور","%"},
+      {"sb13_can_63","گشتاور مرجع موتور","N·m"},
+      {"sb13_can_50","حداکثر دبی هوای قابل‌اندازه‌گیری","g/s"},
+      {"sb13_can_51","نوع سوخت گزارش‌شده ECU",""}
+    };
+    for (String[] row : rows)
+      upsertDynamicParameter(row[0], row[1], "—", row[2], "استاندارد OBD-II");
+  }
+
   void prepareSb13Live() {
-    upsertDynamicParameter("sb13_can_42", "ولتاژ باتری / تغذیه ECU", "—", "V",
-      "در حال درخواست مستقیم از ECU • PID 0x42");
+    seedSb13ParameterRows();
     send("!6");
   }
 
@@ -2118,7 +2168,7 @@ public class MainActivity extends Activity {
       labelColumn.addView(label);
       labelColumn.addView(state);
       row.addView(labelColumn, new LinearLayout.LayoutParams(0, -2, 1.55f));
-      val = text("", 19, true);
+      val = text("—", 19, true);
       val.setTextColor(Color.WHITE);
       val.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
       val.setPadding(dp(4), 0, dp(4), 0);
@@ -2154,13 +2204,8 @@ public class MainActivity extends Activity {
       TextView state = dynamicParameterStatuses.get(id);
       if (state != null && statusText != null && !statusText.trim().isEmpty()) state.setText(statusText);
     }
-    String shown = value == null || value.equals("null") ? "" : value.trim();
-    if (unit != null && !unit.trim().isEmpty()) shown += " " + unit.trim();
-    if (shown.isEmpty() || shown.equals("—")) {
-      if (val.getParent() instanceof View) ((View)val.getParent()).setVisibility(View.GONE);
-      else val.setVisibility(View.GONE);
-      return;
-    }
+    String shown = value == null || value.equals("null") || value.trim().isEmpty() ? "—" : value.trim();
+    if (!shown.equals("—") && unit != null && !unit.trim().isEmpty()) shown += " " + unit.trim();
     if (!shown.contentEquals(val.getText())) val.setText(shown);
     val.setVisibility(View.VISIBLE);
     if (val.getParent() instanceof View) ((View)val.getParent()).setVisibility(View.VISIBLE);
