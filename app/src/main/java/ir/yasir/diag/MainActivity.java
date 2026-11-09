@@ -522,10 +522,10 @@ public class MainActivity extends Activity {
 
     content = prideSiemensSection;
     content.addView(text("پروفایل زیمنس پراید • نمایش تعمیرگاهی ۳۵ پارامتر", 18, true));
-    content.addView(text("نسخه سازگار: STM32 V49؛ سرعت به‌صورت خودکار و فقط پس از دریافت کامل ۳۵ پارامتر افزایش می‌یابد.", 13, false));
+    content.addView(text("مقادیر فقط پس از دریافت واقعی از ECU نمایش داده می‌شوند؛ موارد بدون پاسخ پنهان می‌مانند.", 13, false));
     prideSiemensUpdated = text("در انتظار اولین دوره داده • ۰/۳۵", 14, true);
     content.addView(prideSiemensUpdated);
-    content.addView(text("⚠ یعنی مقدار مشکوک؛ «قدیمی» یعنی داده این دوره نرسیده و آخرین مقدار قبلی موقتاً نگهداری شده است.", 12, false));
+    content.addView(text("نمایش تعمیرگاهی مرتب • نام پارامتر، مقدار و واحد دریافتی از ECU", 12, false));
 
     android.widget.HorizontalScrollView prideTabsScroll = new android.widget.HorizontalScrollView(this);
     prideTabsScroll.setHorizontalScrollBarEnabled(false);
@@ -605,11 +605,6 @@ public class MainActivity extends Activity {
     prideSiemensValues.put("emax_pride_ac_relay", prideCompactRow("رله کولر"));
     prideSiemensValues.put("emax_pride_fan_status", prideCompactRow("وضعیت فن خنک‌کننده"));
     content = prideSiemensSection;
-    button("کپی گزارش ۳۵ پارامتر", () -> copyPrideReport());
-    button("حالت پایدار (اولویت با تکمیل ۳۵/۳۵)", () -> send("!I"));
-    button("سرعت هوشمند (افزایش تدریجی پس از دریافت کامل)", () -> send("!F"));
-    button("اتصال به ECU", () -> send("!1"));
-    button("رفتن به عیب‌یابی", () -> show(diagnosticMenu));
     back(parametersMenu);
     showPrideGroup(0);
 
@@ -702,30 +697,59 @@ public class MainActivity extends Activity {
   }
 
 
-  // Compact professional ECU parameter table, with right-aligned name and left-side value.
+  // Clean diagnostic parameter card. A row appears only after the ECU supplies a value.
   TextView prideCompactRow(String label) {
     LinearLayout row = new LinearLayout(this);
     row.setOrientation(LinearLayout.HORIZONTAL);
     row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
     row.setGravity(Gravity.CENTER_VERTICAL);
-    row.setPadding(dp(8), dp(3), dp(8), dp(3));
+    row.setPadding(dp(12), dp(5), dp(12), dp(5));
     row.setTag("pride-row");
-    row.setBackgroundColor(cardBackground());
-    TextView value = text("—", 16, true);
+    row.setBackground(panelDrawable(cardBackground(), Color.rgb(53, 91, 105), 10));
+    TextView value = text("", 18, true);
     value.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
     value.setTextColor(teal);
-    row.addView(value, new LinearLayout.LayoutParams(0, dp(43), 0.43f));
-    TextView name = text(label, 14, false);
+    row.addView(value, new LinearLayout.LayoutParams(0, dp(48), 0.42f));
+    TextView name = text(label, 14, true);
     name.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-    row.addView(name, new LinearLayout.LayoutParams(0, dp(43), 0.57f));
-    content.addView(row, new LinearLayout.LayoutParams(-1, -2));
-    View line = new View(this);
-    line.setBackgroundColor(Color.rgb(64, 97, 105));
-    content.addView(line, new LinearLayout.LayoutParams(-1, dp(1)));
+    name.setTextColor(Color.WHITE);
+    row.addView(name, new LinearLayout.LayoutParams(0, dp(48), 0.58f));
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+    lp.setMargins(0, 0, 0, dp(7));
+    content.addView(row, lp);
+    row.setVisibility(View.GONE);
     return value;
   }
 
+  void setCompactParameterValue(TextView valueView, String shown) {
+    if (valueView == null) return;
+    View row = (View)valueView.getParent();
+    String value = shown == null ? "" : shown.trim();
+    if (value.isEmpty() || value.equals("—") || value.equalsIgnoreCase("null")) {
+      row.setVisibility(View.GONE);
+      return;
+    }
+    valueView.setText(value);
+    row.setVisibility(View.VISIBLE);
+  }
+
+  void refreshPrideGroupHeaders() {
+    for (LinearLayout group : prideGroupSections) {
+      if (group == null || group.getChildCount() == 0) continue;
+      boolean hasValue = false;
+      for (int i = 1; i < group.getChildCount(); i++) {
+        View child = group.getChildAt(i);
+        if ("pride-row".equals(child.getTag()) && child.getVisibility() == View.VISIBLE) {
+          hasValue = true;
+          break;
+        }
+      }
+      group.getChildAt(0).setVisibility(hasValue ? View.VISIBLE : View.GONE);
+    }
+  }
+
   void showPrideGroup(int group) {
+    refreshPrideGroupHeaders();
     for (int i = 0; i < prideGroupSections.length; i++) {
       if (prideGroupSections[i] != null)
         prideGroupSections[i].setVisibility(group < 0 || group == i ? View.VISIBLE : View.GONE);
@@ -1251,7 +1275,7 @@ public class MainActivity extends Activity {
     if (system.contains("فرمان")) return new String[]{"یونیت فرمان برقی EPS", "ستون فرمان برقی"};
     if (system.contains("تهویه")) return new String[]{"یونیت تهویه مطبوع", "Climate Control"};
     if (system.contains("بدنه") || system.contains("BCM")) return new String[]{"BCM / BSI", "یونیت بدنه و رفاهی", "یونیت مرکزی قفل و شیشه‌ها"};
-    if (system.contains("گازسوز")) return new String[]{"ECU گاز CNG", "ECU دوگانه‌سوز", "واحد کنترل LPG"};
+    if (system.contains("گازسوز")) return new String[]{"ECU گاز CNG", "ECU دوگانه‌سوز", "زیمنس گازسوز • مدل باید شناسایی شود", "واحد کنترل LPG"};
     if (system.equals("دیزل")) return new String[]{"Bosch EDC", "Delphi Diesel", "Denso Diesel", "Siemens Diesel"};
     return new String[]{"Bosch ME7.4.4 / ME7.4.5", "Siemens SIM2K-34VR", "Sagem S2000 / SL96", "ECU بنزینی دوگانه‌سوز"};
   }
@@ -1263,7 +1287,7 @@ public class MainActivity extends Activity {
     selectedBrandLabel = text(selectedBrand + "  |  " + system, 19, true);
     selectedBrandLabel.setTextColor(Color.rgb(235, 246, 255));
     ecuSelectionSection.addView(selectedBrandLabel);
-    TextView note = text("کاتالوگ ECU و یونیت‌های رایج • پروفایل تأییدشده با نشان سبز مشخص است", 12, false);
+    TextView note = text("کاتالوگ ECUهای رایج • سازنده ECU را از روی برند خودرو حدس نمی‌زنیم؛ پروفایل‌های فعال با نشان سبز مشخص‌اند.", 12, false);
     note.setTextColor(Color.rgb(163, 196, 207));
     ecuSelectionSection.addView(note);
     for (String model : ecuCatalogFor(selectedBrand, system)) {
@@ -2094,7 +2118,7 @@ public class MainActivity extends Activity {
       labelColumn.addView(label);
       labelColumn.addView(state);
       row.addView(labelColumn, new LinearLayout.LayoutParams(0, -2, 1.55f));
-      val = text("—", 19, true);
+      val = text("", 19, true);
       val.setTextColor(Color.WHITE);
       val.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
       val.setPadding(dp(4), 0, dp(4), 0);
@@ -2120,7 +2144,7 @@ public class MainActivity extends Activity {
       }
       row.setTag("dynamic-row:" + rank);
       LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, -2);
-      rowParams.setMargins(0, 0, 0, dp(3));
+      rowParams.setMargins(0, 0, 0, dp(7));
       dynamicParameterList.addView(row, insertion, rowParams);
       dynamicParameterValues.put(id, val);
       dynamicParameterNames.put(id, label);
@@ -2132,9 +2156,15 @@ public class MainActivity extends Activity {
       TextView state = dynamicParameterStatuses.get(id);
       if (state != null && statusText != null && !statusText.trim().isEmpty()) state.setText(statusText);
     }
-    String shown = value == null || value.equals("null") ? "—" : value;
-    if (unit != null && !unit.trim().isEmpty()) shown += " " + unit;
+    String shown = value == null || value.equals("null") ? "" : value.trim();
+    if (unit != null && !unit.trim().isEmpty()) shown += " " + unit.trim();
+    if (shown.isEmpty() || shown.equals("—")) {
+      val.getParent() instanceof View ? ((View)val.getParent()).setVisibility(View.GONE) : val.setVisibility(View.GONE);
+      return;
+    }
     if (!shown.contentEquals(val.getText())) val.setText(shown);
+    val.setVisibility(View.VISIBLE);
+    if (val.getParent() instanceof View) ((View)val.getParent()).setVisibility(View.VISIBLE);
     TextView stateView = dynamicParameterStatuses.get(id);
     if (stateView != null) {
       boolean failed = statusText != null && (statusText.contains("پاسخی") || statusText.contains("عدم پاسخ") || statusText.contains("خطا"));
@@ -2222,8 +2252,9 @@ public class MainActivity extends Activity {
         if (id.startsWith("emax_pride_")) {
           TextView prideValue = prideSiemensValues.get(id);
           if (prideValue != null) {
-            prideValue.setText(value + (unit.isEmpty() ? "" : " " + unit));
+            setCompactParameterValue(prideValue, value + (unit.isEmpty() ? "" : " " + unit));
             prideValue.setTextColor(teal);
+            refreshPrideGroupHeaders();
             if (prideSiemensUpdated != null)
               prideSiemensUpdated.setText("زیمنس پراید • آخرین دریافت: " +
                 new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
@@ -2235,7 +2266,7 @@ public class MainActivity extends Activity {
             String shown = value;
             if (!unit.isEmpty()) shown += " " + unit;
             if (!state.isEmpty()) shown += " • " + state;
-            boschValue.setText(shown);
+            setCompactParameterValue(boschValue, shown);
             boschValue.setTextColor(teal);
           }
           if (boschZamyadUpdated != null)
