@@ -397,7 +397,7 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.6.1 • جستجوی خودکار و کاتالوگ برندها",16,true));
+    content.addView(text("نسخه برنامه: 2.6.2 • منوی اسکنر و کاتالوگ برندها",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به E-MAX، TCP پورت 3333؛ جستجوی خودکار CAN و انتخاب دستی ECU/یونیت.",14,false));
     content.addView(text("شناسایی خودکار، پاسخ OBD-II و مشخصات شبکه CAN را پیدا می‌کند. برای تعیین مدل ECU از انتخاب دستی استفاده کنید.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
@@ -1109,31 +1109,46 @@ public class MainActivity extends Activity {
   }
 
   void addBrandDirectoryRow(LinearLayout parent, String name, String code, String subtitle) {
+    // V-MAX-inspired flat scanner row with a right-hand typographic brand tile.
     LinearLayout row = new LinearLayout(this);
     row.setOrientation(LinearLayout.HORIZONTAL);
     row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
     row.setGravity(Gravity.CENTER_VERTICAL);
-    row.setPadding(dp(12), dp(8), dp(12), dp(8));
-    row.setBackground(panelDrawable(Color.rgb(24, 43, 65), Color.rgb(48, 91, 112), 13));
-    TextView badge = text(code, code.length() > 7 ? 8 : code.length() > 5 ? 9 : 11, true);
+    row.setMinimumHeight(dp(66));
+    row.setPadding(dp(4), dp(4), dp(4), dp(4));
+    row.setBackground(blueDiagnosticDrawable(parent.getChildCount() % 2 != 0));
+
+    TextView badge = text(code, code.length() > 7 ? 8 : code.length() > 5 ? 10 : 12, true);
     badge.setGravity(Gravity.CENTER);
-    badge.setTextColor(Color.rgb(90, 220, 208));
-    badge.setBackground(panelDrawable(Color.rgb(12, 31, 46), Color.rgb(46, 102, 119), 9));
-    row.addView(badge, new LinearLayout.LayoutParams(dp(76), dp(42)));
+    badge.setTextColor(Color.rgb(29, 57, 87));
+    badge.setMaxLines(2);
+    badge.setBackground(panelDrawable(Color.rgb(225, 235, 228), Color.WHITE, 2));
+    row.addView(badge, new LinearLayout.LayoutParams(dp(72), -1));
+
     LinearLayout labels = new LinearLayout(this);
     labels.setOrientation(LinearLayout.VERTICAL);
-    labels.setPadding(dp(11), 0, dp(8), 0);
-    TextView title = text(name, 16, true);
-    title.setTextColor(Color.rgb(239, 246, 252));
-    labels.addView(title);
-    TextView hint = text(subtitle, 10, false);
-    hint.setTextColor(Color.rgb(155, 193, 202));
-    labels.addView(hint);
-    row.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
-    TextView arrow = text("‹", 24, true);
-    arrow.setTextColor(Color.rgb(84, 222, 205));
-    row.addView(arrow);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+    labels.setGravity(Gravity.CENTER);
+    labels.setPadding(dp(7), 0, dp(7), 0);
+    TextView title = text(name, 17, true);
+    title.setGravity(Gravity.CENTER);
+    title.setTextColor(Color.WHITE);
+    title.setMaxLines(1);
+    title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    labels.addView(title, new LinearLayout.LayoutParams(-1, -2));
+    TextView hint = text(subtitle, 9, false);
+    hint.setGravity(Gravity.CENTER);
+    hint.setTextColor(Color.rgb(207, 231, 249));
+    hint.setMaxLines(1);
+    hint.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    labels.addView(hint, new LinearLayout.LayoutParams(-1, -2));
+    row.addView(labels, new LinearLayout.LayoutParams(0, -1, 1));
+
+    TextView arrow = text("›", 22, true);
+    arrow.setGravity(Gravity.CENTER);
+    arrow.setTextColor(Color.WHITE);
+    row.addView(arrow, new LinearLayout.LayoutParams(dp(24), -1));
+
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(66));
     lp.setMargins(0, 0, 0, dp(7));
     parent.addView(row, lp);
     row.setOnClickListener(v -> openEcuMenu(name));
@@ -1174,30 +1189,46 @@ public class MainActivity extends Activity {
   }
 
   void addCatalogRow(LinearLayout parent, String title, String subtitle, String icon, Runnable action) {
+    // Matching square-corner scanner rows for systems, ECU models and side units.
     LinearLayout row = new LinearLayout(this);
     row.setOrientation(LinearLayout.HORIZONTAL);
     row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
     row.setGravity(Gravity.CENTER_VERTICAL);
-    row.setPadding(dp(12), dp(7), dp(12), dp(7));
-    row.setBackground(panelDrawable(Color.rgb(26, 48, 71), Color.rgb(49, 96, 117), 11));
-    TextView symbol = text(icon, icon.length() > 3 ? 10 : 12, true);
+    row.setMinimumHeight(dp(62));
+    row.setPadding(dp(4), dp(4), dp(4), dp(4));
+    row.setBackground(blueDiagnosticDrawable(parent.getChildCount() % 2 != 0));
+
+    TextView symbol = text(icon, icon.length() > 4 ? 10 : 12, true);
     symbol.setGravity(Gravity.CENTER);
-    symbol.setTextColor(Color.rgb(94, 220, 208));
-    row.addView(symbol, new LinearLayout.LayoutParams(dp(42), dp(42)));
+    symbol.setTextColor(Color.rgb(29, 57, 87));
+    symbol.setMaxLines(2);
+    symbol.setBackground(panelDrawable(Color.rgb(225, 235, 228), Color.WHITE, 2));
+    row.addView(symbol, new LinearLayout.LayoutParams(dp(68), -1));
+
     LinearLayout names = new LinearLayout(this);
     names.setOrientation(LinearLayout.VERTICAL);
-    names.setPadding(dp(8), 0, dp(4), 0);
+    names.setGravity(Gravity.CENTER);
+    names.setPadding(dp(7), 0, dp(7), 0);
     TextView name = text(title, 15, true);
-    name.setTextColor(Color.rgb(239, 246, 252));
-    names.addView(name);
+    name.setGravity(Gravity.CENTER);
+    name.setTextColor(Color.WHITE);
+    name.setMaxLines(1);
+    name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    names.addView(name, new LinearLayout.LayoutParams(-1, -2));
     TextView detail = text(subtitle, 10, false);
-    detail.setTextColor(Color.rgb(151, 191, 203));
-    names.addView(detail);
-    row.addView(names, new LinearLayout.LayoutParams(0, -2, 1));
-    TextView next = text("‹", 22, true);
-    next.setTextColor(Color.rgb(94, 220, 208));
-    row.addView(next);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+    detail.setGravity(Gravity.CENTER);
+    detail.setTextColor(Color.rgb(207, 231, 249));
+    detail.setMaxLines(1);
+    detail.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    names.addView(detail, new LinearLayout.LayoutParams(-1, -2));
+    row.addView(names, new LinearLayout.LayoutParams(0, -1, 1));
+
+    TextView next = text("›", 22, true);
+    next.setGravity(Gravity.CENTER);
+    next.setTextColor(Color.WHITE);
+    row.addView(next, new LinearLayout.LayoutParams(dp(24), -1));
+
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(62));
     lp.setMargins(0, 0, 0, dp(6));
     parent.addView(row, lp);
     row.setOnClickListener(v -> action.run());
@@ -1732,7 +1763,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.6.1\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.6.2\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
