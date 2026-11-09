@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
   boolean tcpLive = false;
   volatile boolean scanAfterTcpConnect = false;
   boolean autoDetectionActive = false;
+  boolean autoCanConnected = false;
   int autoDetectionStage = 0;
   int autoDetectionToken = 0;
   boolean exiting = false;
@@ -400,7 +401,7 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.6.3 • شناسایی چندمسیره ECU",16,true));
+    content.addView(text("نسخه برنامه: 2.6.4 • شناسایی چندمسیره و ECU ID",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به E-MAX، TCP پورت 3333؛ جستجوی خودکار CAN و انتخاب دستی ECU/یونیت.",14,false));
     content.addView(text("شناسایی خودکار، پاسخ OBD-II و مشخصات شبکه CAN را پیدا می‌کند. برای تعیین مدل ECU از انتخاب دستی استفاده کنید.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
@@ -1327,6 +1328,7 @@ public class MainActivity extends Activity {
     preferences.edit().putString("yasir.lastBrand", selectedBrand)
         .putString("yasir.lastEcu", selectedEcu).putString("yasir.lastScreen", "autoSearch").apply();
     autoDetectionActive = true;
+    autoCanConnected = false;
     autoDetectionStage = 1;
     autoDetectionToken++;
     if (autoSearchStatus != null)
@@ -1365,6 +1367,8 @@ public class MainActivity extends Activity {
     ui.postDelayed(() -> {
       if (!autoDetectionActive || token != autoDetectionToken || autoDetectionStage != stage) return;
       if (stage < 3) beginAutomaticDetectionStage(stage + 1);
+      else if (autoCanConnected)
+        finishAutomaticDetection("ارتباط OBD-II روی CAN برقرار شد، اما شناسهٔ ECU برنگشت. برای خواندن Mode 09، firmware روی STM32 باید به V52 به‌روزرسانی شود.");
       else finishAutomaticDetection("پاسخی از پروفایل‌های فعال بوش/زیمنس یا OBD-II CAN دریافت نشد. ECUهای دیگر به پروتکل و شناسهٔ اختصاصی خود نیاز دارند.");
     }, waitMs);
   }
@@ -2526,6 +2530,7 @@ public class MainActivity extends Activity {
         } else if (message.equals("DTC_CLEAR_FAILED")) {
           setStatus("پاک‌کردن خطاها ناموفق بود؛ ECU پاسخ مثبت نداد");
         } else if (message.startsWith("OBD_CAN_CONNECTED_")) {
+          autoCanConnected = true;
           String net = message.substring("OBD_CAN_CONNECTED_".length()).replace("_", " ");
           setStatus("اتصال CAN برقرار شد • " + net);
           updateAutoSearchResult("پاسخ ECU روی CAN دریافت شد • " + net +
