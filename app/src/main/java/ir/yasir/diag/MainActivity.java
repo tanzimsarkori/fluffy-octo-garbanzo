@@ -50,6 +50,9 @@ public class MainActivity extends Activity {
   long lastUiStatusAt = 0;
   boolean tcpLive = false;
   volatile boolean scanAfterTcpConnect = false;
+  boolean autoDetectionActive = false;
+  int autoDetectionStage = 0;
+  int autoDetectionToken = 0;
   boolean exiting = false;
   final HashMap<Integer, Bitmap> vehiclePhotoCache = new HashMap<>();
   final HashMap<Integer, Boolean> vehiclePhotoLoading = new HashMap<>();
@@ -397,7 +400,7 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.6.2 • منوی اسکنر و کاتالوگ برندها",16,true));
+    content.addView(text("نسخه برنامه: 2.6.3 • شناسایی چندمسیره ECU",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به E-MAX، TCP پورت 3333؛ جستجوی خودکار CAN و انتخاب دستی ECU/یونیت.",14,false));
     content.addView(text("شناسایی خودکار، پاسخ OBD-II و مشخصات شبکه CAN را پیدا می‌کند. برای تعیین مدل ECU از انتخاب دستی استفاده کنید.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
@@ -1309,35 +1312,69 @@ public class MainActivity extends Activity {
     show(home);
   }
 
+  void appendEcuInfoLine(StringBuilder target, String label, String value) {
+    if (value == null || value.trim().isEmpty()) return;
+    target.append("\n").append(label).append(": ").append(value.trim());
+  }
+
   void updateAutoSearchResult(String message) {
     if (autoSearchStatus != null) ui.post(() -> autoSearchStatus.setText(message));
   }
 
   void startAutomaticCanScan() {
     if (selectedBrand == null || selectedBrand.trim().isEmpty()) selectedBrand = "زامیاد";
-    selectedEcu = "شناسایی خودکار OBD-II CAN";
-    pendingProfileCommand = "!PROFILE:SB13_CAN";
+    selectedEcu = "شناسایی خودکار ECU";
     preferences.edit().putString("yasir.lastBrand", selectedBrand)
         .putString("yasir.lastEcu", selectedEcu).putString("yasir.lastScreen", "autoSearch").apply();
-    scanAfterTcpConnect = true;
-    if (autoSearchStatus != null) autoSearchStatus.setText("در حال جستجوی خودکار ECU روی CAN\nبرند انتخابی: " + selectedBrand + "\nمدل دقیق پس از دریافت شناسه ECU اعلام می‌شود.");
-    diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: در حال شناسایی خودکار CAN");
+    autoDetectionActive = true;
+    autoDetectionStage = 1;
+    autoDetectionToken++;
+    if (autoSearchStatus != null)
+      autoSearchStatus.setText("جستجوی ECU شروع شد\n۱) بوش روی K-Line  •  ۲) زیمنس روی K-Line  •  ۳) OBD-II روی CAN");
+    diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: در حال شناسایی خودکار");
     show(autoSearchSection);
-    setStatus("در حال جستجوی خودکار ECU روی CAN...");
+    setStatus("جستجوی خودکار پروفایل‌های فعال ECU آغاز شد");
     if (!tcpLive || socket == null || socket.isClosed()) {
+      pendingProfileCommand = "!PROFILE:BOSCH";
+      scanAfterTcpConnect = true;
       connect();
       return;
     }
-    String command = pendingProfileCommand;
-    pendingProfileCommand = "";
-    send(command);
+    beginAutomaticDetectionStage(1);
+  }
+
+  void beginAutomaticDetectionStage(int stage) {
+    if (!autoDetectionActive || !tcpLive || socket == null || socket.isClosed()) return;
+    autoDetectionStage = stage;
+    final int token = ++autoDetectionToken;
+    final String profile = stage == 1 ? "BOSCH" : stage == 2 ? "SIEMENS" : "SB13_CAN";
+    final String label = stage == 1 ? "بوش زامیاد روی K-Line" :
+        stage == 2 ? "زیمنس پراید روی K-Line" : "OBD-II عمومی روی CAN";
+    if (autoSearchStatus != null) autoSearchStatus.setText("در حال بررسی " + label + " ...");
+    setStatus("شناسایی خودکار: " + label);
+    send("!PROFILE:" + profile);
     ui.postDelayed(() -> {
-      if (tcpLive) {
-        send("!1");
-        setStatus("جستجوی خودکار CAN آغاز شد؛ منتظر پاسخ ECU...");
-      }
-      scanAfterTcpConnect = false;
+      if (!autoDetectionActive || token != autoDetectionToken || !tcpLive) return;
+      send("!1");
+      armAutomaticDetectionTimeout(stage, token);
     }, 350);
+  }
+
+  void armAutomaticDetectionTimeout(final int stage, final int token) {
+    long waitMs = stage == 1 ? 4300 : stage == 2 ? 5200 : 10500;
+    ui.postDelayed(() -> {
+      if (!autoDetectionActive || token != autoDetectionToken || autoDetectionStage != stage) return;
+      if (stage < 3) beginAutomaticDetectionStage(stage + 1);
+      else finishAutomaticDetection("پاسخی از پروفایل‌های فعال بوش/زیمنس یا OBD-II CAN دریافت نشد. ECUهای دیگر به پروتکل و شناسهٔ اختصاصی خود نیاز دارند.");
+    }, waitMs);
+  }
+
+  void finishAutomaticDetection(String result) {
+    autoDetectionActive = false;
+    autoDetectionStage = 0;
+    autoDetectionToken++;
+    if (autoSearchStatus != null) autoSearchStatus.setText(result);
+    setStatus("جستجوی خودکار پایان یافت");
   }
 
   void requestProfileCommand(String command) {
@@ -1949,7 +1986,10 @@ public class MainActivity extends Activity {
             ui.postDelayed(() -> {
               if (running && connectionEpoch == epoch) {
                 send("!1");
-                setStatus("ارتباط دستگاه برقرار شد؛ جست‌وجوی خودکار CAN شروع شد");
+                if (autoDetectionActive) {
+                  setStatus("ارتباط دستگاه برقرار شد؛ مرحلهٔ اول شناسایی ECU شروع شد");
+                  armAutomaticDetectionTimeout(autoDetectionStage, autoDetectionToken);
+                } else setStatus("ارتباط دستگاه برقرار شد؛ جست‌وجوی CAN شروع شد");
               }
               scanAfterTcpConnect = false;
             }, 520);
@@ -2201,24 +2241,25 @@ public class MainActivity extends Activity {
       }
     }
 
-    // Backwards-compatible generic renderer: any future scalar JSON field is displayed automatically.
-    Iterator<String> keys = j.keys();
-    while (keys.hasNext()) {
-      String key = keys.next();
-      if ("type".equals(key) || "raw".equals(key) || "parameters".equals(key) ||
-          "injectors".equals(key) || "spark".equals(key) || "profile".equals(key) ||
-          "connected".equals(key) || "cycle".equals(key)) continue;
-      Object value = j.opt(key);
-      if (value == null || value instanceof JSONObject || value instanceof JSONArray) continue;
-      String unit = "";
-      if ("rpm".equals(key)) unit = "دور/دقیقه";
-      else if ("coolant".equals(key) || "intake".equals(key)) unit = "°C";
-      else if ("battery".equals(key)) unit = "V";
-      else if ("map".equals(key)) unit = "bosch_zamyad_7971".equals(j.optString("profile")) ?
-          "mbar (فرمول مرجع)" : "kPa (تأییدنشده)";
-      upsertDynamicParameter("json_" + key, friendlyParameterName(key), String.valueOf(value), unit, "");
+    // Structured rows already include the values; use scalar fallback only for older firmware.
+    if (params == null) {
+      Iterator<String> keys = j.keys();
+      while (keys.hasNext()) {
+        String key = keys.next();
+        if ("type".equals(key) || "raw".equals(key) || "parameters".equals(key) ||
+            "injectors".equals(key) || "spark".equals(key) || "profile".equals(key) ||
+            "connected".equals(key) || "cycle".equals(key)) continue;
+        Object value = j.opt(key);
+        if (value == null || value instanceof JSONObject || value instanceof JSONArray) continue;
+        String unit = "";
+        if ("rpm".equals(key)) unit = "دور/دقیقه";
+        else if ("coolant".equals(key) || "intake".equals(key)) unit = "°C";
+        else if ("battery".equals(key)) unit = "V";
+        else if ("map".equals(key)) unit = "bosch_zamyad_7971".equals(j.optString("profile")) ?
+            "mbar (فرمول مرجع)" : "kPa (تأییدنشده)";
+        upsertDynamicParameter("json_" + key, friendlyParameterName(key), String.valueOf(value), unit, "");
+      }
     }
-
     // Avoid continuously updating ~93 extra hidden raw-byte rows while
     // the user is on the Pride dashboard. Show them only on their own page.
     JSONArray raw = (currentScreen == dynamicParametersSection) ? j.optJSONArray("raw") : null;
@@ -2385,11 +2426,30 @@ public class MainActivity extends Activity {
       JSONObject j = new JSONObject(line);
       if ("p".equals(j.optString("t"))) {
         updateCompactPride(j);
+        if (autoDetectionActive && autoDetectionStage == 2)
+          finishAutomaticDetection("دادهٔ زنده با پروفایل زیمنس پراید سازگار است؛ شناسهٔ کارخانه‌ای جداگانه اعلام نشد.");
         return;
       }
       String type = j.optString("type");
-      if(type.equals("parameters")) {
+      if (type.equals("ecu_info")) {
+        String maker = j.optString("manufacturer", "UNKNOWN");
+        String makerFa = "UNKNOWN".equalsIgnoreCase(maker) ? "در پاسخ ECU اعلام نشده" : maker;
+        StringBuilder info = new StringBuilder("ECU روی CAN پاسخ داد");
+        appendEcuInfoLine(info, "سازنده", makerFa);
+        appendEcuInfoLine(info, "نام ECU", j.optString("ecu_name", ""));
+        appendEcuInfoLine(info, "شناسه کالیبراسیون", j.optString("calibration_id", ""));
+        appendEcuInfoLine(info, "CVN", j.optString("cvn", ""));
+        appendEcuInfoLine(info, "VIN", j.optString("vin", ""));
+        appendEcuInfoLine(info, "شبکه", j.optString("protocol", ""));
+        updateAutoSearchResult(info.toString());
+        if (autoDetectionActive && autoDetectionStage == 3) finishAutomaticDetection(info.toString());
+        setStatus("اطلاعات شناسایی استاندارد ECU دریافت شد");
+      } else if(type.equals("parameters")) {
         updateDynamicParameters(j);
+        if (autoDetectionActive && autoDetectionStage == 1 &&
+            "bosch_zamyad_7971".equals(j.optString("profile")))
+          finishAutomaticDetection("پاسخ داده با پروفایل بوش زامیاد 7.9.7.1 سازگار است؛ شناسهٔ کارخانه‌ای جداگانه اعلام نشد.");
+
         if ("bosch_zamyad_7971".equals(j.optString("profile"))) {
           if (boschZamyadUpdated != null) boschZamyadUpdated.setText("بوش زامیاد • دریافت تازه: " + new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
           setStatus("۱۹ پارامتر زنده بوش زامیاد دریافت شد");
@@ -2402,6 +2462,8 @@ public class MainActivity extends Activity {
         }
       } else if(type.equals("telemetry")) {
         telemetryFrames++;
+        if (autoDetectionActive && autoDetectionStage == 2)
+          finishAutomaticDetection("دادهٔ زنده با پروفایل زیمنس پراید سازگار است؛ شناسهٔ کارخانه‌ای جداگانه اعلام نشد.");
         updateDynamicParameters(j);
         rpm.setText(j.optString("rpm","—") + " دور/دقیقه");
         coolant.setText(j.optString("coolant","—") + " °C");
@@ -2463,24 +2525,20 @@ public class MainActivity extends Activity {
           setStatus("فرمان پاک‌کردن خطاها به ECU ارسال و پذیرفته شد");
         } else if (message.equals("DTC_CLEAR_FAILED")) {
           setStatus("پاک‌کردن خطاها ناموفق بود؛ ECU پاسخ مثبت نداد");
-        } else if (message.equals("OBD_CAN_CONNECTED_11BIT_500K")) {
-          setStatus("اتصال CAN برقرار شد • شناسهٔ ۱۱بیتی • سرعت ۵۰۰ کیلوبیت‌برثانیه");
-          updateAutoSearchResult("ECU روی CAN پاسخ‌گو است\nشبکه: 11-bit • 500 kbit/s\nمدل دقیق در پاسخ استاندارد اعلام نشده است.");
-        } else if (message.equals("OBD_CAN_CONNECTED_29BIT_500K")) {
-          setStatus("اتصال CAN برقرار شد • شناسهٔ ۲۹بیتی • سرعت ۵۰۰ کیلوبیت‌برثانیه");
-          updateAutoSearchResult("ECU روی CAN پاسخ‌گو است\nشبکه: 29-bit • 500 kbit/s\nمدل دقیق در پاسخ استاندارد اعلام نشده است.");
-        } else if (message.equals("OBD_CAN_CONNECTED_11BIT_250K")) {
-          setStatus("اتصال CAN برقرار شد • شناسهٔ ۱۱بیتی • سرعت ۲۵۰ کیلوبیت‌برثانیه");
-          updateAutoSearchResult("ECU روی CAN پاسخ‌گو است\nشبکه: 11-bit • 250 kbit/s\nمدل دقیق در پاسخ استاندارد اعلام نشده است.");
-        } else if (message.equals("OBD_CAN_CONNECTED_29BIT_250K")) {
-          setStatus("اتصال CAN برقرار شد • شناسهٔ ۲۹بیتی • سرعت ۲۵۰ کیلوبیت‌برثانیه");
-          updateAutoSearchResult("ECU روی CAN پاسخ‌گو است\nشبکه: 29-bit • 250 kbit/s\nمدل دقیق در پاسخ استاندارد اعلام نشده است.");
+        } else if (message.startsWith("OBD_CAN_CONNECTED_")) {
+          String net = message.substring("OBD_CAN_CONNECTED_".length()).replace("_", " ");
+          setStatus("اتصال CAN برقرار شد • " + net);
+          updateAutoSearchResult("پاسخ ECU روی CAN دریافت شد • " + net +
+              "\nدر حال خواندن VIN، نام ECU و شناسه‌های استاندارد...");
+          if (autoDetectionActive && autoDetectionStage == 3) send("!7");
         } else if (message.startsWith("CAN_PROBING_")) {
           setStatus("در حال جست‌وجوی پاسخ ECU روی CAN: " + message.replace("CAN_PROBING_", ""));
           updateAutoSearchResult("در حال جستجوی ECU پاسخ‌گو روی CAN...\n" + message.replace("CAN_PROBING_", ""));
         } else if (message.equals("OBD_CAN_NO_RESPONSE")) {
-          setStatus("ECU به درخواست OBD-II عمومی پاسخ نداد؛ شبکه، سوئیچ و پروتکل اختصاصی را بررسی کنید");
-          updateAutoSearchResult("پاسخی از ECU روی OBD-II CAN دریافت نشد.\nممکن است پروتکل خودرو اختصاصی باشد؛ انتخاب دستی سیستم را باز کنید.");
+          setStatus("در این شبکه پاسخی برای OBD-II CAN دریافت نشد");
+          if (autoDetectionActive && autoDetectionStage == 3)
+            finishAutomaticDetection("پاسخی از بوش K-Line، زیمنس K-Line یا OBD-II CAN دریافت نشد. مدل‌های دیگر باید با پروتکل تأییدشدهٔ خود به کاتالوگ اضافه شوند.");
+          else updateAutoSearchResult("پاسخی از ECU روی OBD-II CAN دریافت نشد. انتخاب دستی سیستم را باز کنید.");
         } else if (message.equals("OBD_CAN_NOT_CONNECTED")) {
           setStatus("ابتدا ECU را از راه CAN شناسایی و متصل کنید");
         } else if (message.equals("OBD_CAN_DISCONNECTED")) {
@@ -2516,9 +2574,11 @@ public class MainActivity extends Activity {
         } else if (message.equals("ACTUATOR_ALL_OFF_SENT")) {
           setStatus("فرمان توقف همه تست‌ها ارسال شد؛ تأیید ECU در انتظار است");
         } else if (message.equals("BOSCH_ECU_CONNECTED")) {
-          setStatus("اتصال ECU بوش زامیاد برقرار شد؛ دریافت ۱۹ پارامتر زنده آغاز می‌شود");
+          setStatus("پاسخ K-Line دریافت شد؛ در حال تأیید پروفایل بوش زامیاد");
+          if (autoDetectionActive && autoDetectionStage == 1) send("!6");
         } else if (message.equals("BOSCH_ECU_CONNECTION_FAILED")) {
-          setStatus("اتصال ECU بوش تأیید نشد؛ وضعیت K-Line و سوئیچ را بررسی کنید");
+          setStatus("پروفایل بوش پاسخ نداد؛ بررسی زیمنس شروع می‌شود");
+          if (autoDetectionActive && autoDetectionStage == 1) beginAutomaticDetectionStage(2);
         } else if (message.equals("BOSCH_PARAMETER_READ_FAILED")) {
           setStatus("خواندن پارامترهای بوش ناموفق بود؛ ارتباط ECU را بررسی کنید");
         } else if (message.equals("BOSCH_DTC_CLEAR_NOT_CONFIRMED")) {
@@ -2549,6 +2609,16 @@ public class MainActivity extends Activity {
           setStatus("پروفایل Bosch Zamyad 7.9.7.1 فعال شد");
         } else if (message.equals("PROFILE_SIEMENS_SELECTED")) {
           setStatus("پروفایل زیمنس فعال شد");
+        } else if (message.equals("ECU_CONNECTED")) {
+          setStatus("پاسخ K-Line دریافت شد؛ منتظر دادهٔ زندهٔ زیمنس هستیم");
+        } else if (message.equals("ECU_CONNECTION_FAILED")) {
+          setStatus("پروفایل زیمنس پاسخ نداد؛ بررسی OBD-II روی CAN شروع می‌شود");
+          if (autoDetectionActive && autoDetectionStage == 2) beginAutomaticDetectionStage(3);
+        } else if (message.equals("CAN_ID_INFO_COMPLETE")) {
+          setStatus("شناسه‌های استاندارد ECU دریافت شد");
+        } else if (message.equals("CAN_ID_INFO_UNAVAILABLE")) {
+          if (autoDetectionActive && autoDetectionStage == 3)
+            finishAutomaticDetection("ECU روی CAN پاسخ می‌دهد، اما نام ECU و شناسهٔ Calibration را در Mode 09 ارائه نکرد.");
         } else if (message.equals("ACTUATOR_COMMAND_SENT_WAITING_ECU")) {
           setStatus("فرمان عملگر ارسال شد؛ منتظر پاسخ ECU...");
         } else {
