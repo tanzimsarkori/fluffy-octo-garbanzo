@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
   final Runnable showRealTcpLoss = () -> displayTcpBadge(false);
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
   LinearLayout appBrandHeader;
-  LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, ecuSelectionSection, diagnosticMenu, settingsSection, updateSection, helpSection;
+  LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, systemSelectionSection, ecuSelectionSection, diagnosticMenu, settingsSection, updateSection, helpSection;
   LinearLayout dynamicReturnTarget;
   ScrollView scrollContainer;
   final HashMap<String, Integer> screenScrollPositions = new HashMap<>();
@@ -75,7 +75,7 @@ public class MainActivity extends Activity {
   int prideIncompleteCycles = 0;
   int prideInvalidValues = 0;
   final HashMap<String, TextView> prideSiemensValues = new HashMap<>();
-  String selectedBrand = "", selectedEcu = "";
+  String selectedBrand = "", selectedEcu = "", selectedSystemType = "";
   TextView updateInfo;
   SharedPreferences preferences;
   float uiScale = 1.0f;
@@ -281,41 +281,41 @@ public class MainActivity extends Activity {
     boschZamyadSection = section("ECU بوش زامیاد 7.9.7.1 • داده زنده آزمایشی");
     boschServiceSection = section("ECU بوش زامیاد 7.9.7.1 — خطاها و عملگرها");
     sb13CanSection = section("");
-    ecuSelectionSection = section("انتخاب ECU");
+    systemSelectionSection = section("انتخاب سیستم و یونیت");
+    ecuSelectionSection = section("انتخاب ECU یا یونیت");
     diagnosticMenu = section("منوی عیب‌یابی");
     settingsSection = section("تنظیمات ظاهری و برنامه");
     updateSection = section("به‌روزرسانی برنامه");
     helpSection = section("راهنما و اطلاعات برنامه");
 
     content = home;
-    styleBlueWorkshopPage(home);
-    blueWorkshopHeader("یاسر دیاگ", "نیسان زامیاد بنزینی • عظام SB13");
-    TextView ecuSummary = text("دریچه گاز برقی  |  اتصال عیب‌یابی روی CAN\nتشخیص خودکار ارتباط CAN یا انتخاب دستی ECU", 14, true);
-    ecuSummary.setGravity(Gravity.CENTER);
-    ecuSummary.setTextColor(Color.rgb(197, 223, 255));
-    ecuSummary.setPadding(dp(8), dp(10), dp(8), dp(10));
-    home.addView(ecuSummary);
-    blueWorkshopRow(home, "شناسایی خودکار و اتصال ECU روی CAN", "⌕", () -> startAutomaticCanScan());
-    blueWorkshopRow(home, "انتخاب دستی ECU", "▤", () -> showManualEcuPicker());
-    blueWorkshopRow(home, "خواندن پارامترهای زنده", "▥", () -> {
-      dynamicReturnTarget = home;
-      show(dynamicParametersSection);
-      prepareSb13Live();
-    });
-    blueWorkshopRow(home, "خواندن خطاهای ECU", "⚠", () -> { show(dtcSection); send("!2"); });
-    blueWorkshopRow(home, "پاک‌کردن خطاهای ECU", "×", () -> confirmClear());
-    blueWorkshopRow(home, "قطع ارتباط CAN", "⏻", () -> send("!0"));
+    content.addView(sectionTitle("انتخاب سازنده خودرو", "برند خودرو را انتخاب کنید تا ECU و یونیت‌ها را ببینید", "🚘"));
+    addBrandDirectoryRow(home, "ایران خودرو", "IKCO", "سمند، پژو، دنا و خانواده ملی");
+    addBrandDirectoryRow(home, "سایپا", "SAIPA", "پراید، تیبا، ساینا، کوییک و شاهین");
+    addBrandDirectoryRow(home, "پارس خودرو", "PARS", "محصولات پارس‌خودرو و پلتفرم‌های مشترک");
+    addBrandDirectoryRow(home, "زامیاد", "ZMYD", "نیسان زامیاد • بنزینی و دوگانه‌سوز");
+    addBrandDirectoryRow(home, "بهمن", "BAHM", "سواری، وانت و خودروهای تجاری");
+    addBrandDirectoryRow(home, "کرمان موتور", "KMC", "جک، کی‌ام‌سی و خودروهای مونتاژی");
+    addBrandDirectoryRow(home, "مدیران خودرو", "MVM", "ام‌وی‌ام، چری و فونیکس");
+    addBrandDirectoryRow(home, "رنو", "RENAULT", "تندر، ساندرو و خانواده رنو");
+    addBrandDirectoryRow(home, "پژو", "PEUGEOT", "پلتفرم‌ها و ECUهای خانواده پژو");
+    addBrandDirectoryRow(home, "نیسان", "NISSAN", "نیسان سواری و تجاری");
+    addBrandDirectoryRow(home, "تویوتا", "TOYOTA", "خودروهای سواری و شاسی‌بلند");
+    addBrandDirectoryRow(home, "هیوندای", "HYUNDAI", "سواری و کراس‌اوور");
+    addBrandDirectoryRow(home, "کیا", "KIA", "سواری و کراس‌اوور");
+    addBrandDirectoryRow(home, "مزدا", "MAZDA", "سواری و وانت");
+    addBrandDirectoryRow(home, "سایر خودروها", "OTHER", "برندهای دیگر و فهرست عمومی ECU");
 
     content = sb13CanSection;
     styleBlueWorkshopPage(sb13CanSection);
-    blueWorkshopHeader("یاسر دیاگ", "نیسان زامیاد بنزینی • عظام SB13");
-    sb13CanUpdated = text("پروفایل ECU انتخاب شده است", 13, false);
+    blueWorkshopHeader("یاسر دیاگ", "نیسان زامیاد • SB13 بنزینی یورو ۵");
+    sb13CanUpdated = text("هنوز پارامتر زنده‌ای دریافت نشده است", 13, false);
     sb13CanUpdated.setGravity(Gravity.CENTER);
     sb13CanUpdated.setTextColor(Color.rgb(197, 223, 255));
     content.addView(sb13CanUpdated);
-    blueWorkshopRow(content, "شناسایی خودکار و اتصال ECU روی CAN", "⌕", () -> startAutomaticCanScan());
-    blueWorkshopRow(content, "انتخاب دستی ECU", "▤", () -> showManualEcuPicker());
-    blueWorkshopRow(content, "خواندن پارامترهای زنده", "▥", () -> {
+    blueWorkshopRow(content, "جستجوی خودکار ECU روی CAN", "⌕", () -> send("!1"));
+    blueWorkshopRow(content, "SB13 بنزینی یورو ۵", "⚡", () -> send("!1"));
+    blueWorkshopRow(content, "خواندن پارامترهای زنده", "▤", () -> {
       dynamicReturnTarget = sb13CanSection;
       show(dynamicParametersSection);
       prepareSb13Live();
@@ -323,25 +323,35 @@ public class MainActivity extends Activity {
     blueWorkshopRow(content, "خواندن خطاهای ECU", "⚠", () -> { show(dtcSection); send("!2"); });
     blueWorkshopRow(content, "پاک‌کردن خطاهای ECU", "×", () -> confirmClear());
     blueWorkshopRow(content, "قطع ارتباط CAN", "⏻", () -> send("!0"));
-    blueWorkshopRow(content, "بازگشت به صفحه اصلی", "‹", () -> show(home));
+    blueWorkshopRow(content, "بازگشت", "‹", () -> show(ecuSelectionSection));
 
     content = ecuSelectionSection;
-    selectedBrandLabel = text("نیسان زامیاد بنزینی",18,true);
+    selectedBrandLabel = text("برند و سیستم انتخابی",18,true);
     content.addView(selectedBrandLabel);
-    content.addView(text("انتخاب دستی پروفایل CAN. شناسایی خودکار، نرخ و قالب ارتباط CAN را جست‌وجو می‌کند؛ نام دقیق ECU همیشه از OBD عمومی قابل دریافت نیست.",14,false));
-    button("عظام SB13 — نیسان زامیاد بنزینی", () -> selectManualEcu("SB13"));
-    button("سایر ECUهای سازگار با OBD-II CAN", () -> selectManualEcu("OBD-II CAN عمومی"));
-    back(home);
+    content.addView(text("مدل ECU یا یونیت را انتخاب کنید. گزینه‌های دارای نشان «پروفایل فعال» در این نسخه پشتیبانی عملیاتی دارند؛ بقیه فقط در کاتالوگ نمایش داده می‌شوند.",14,false));
+    back(systemSelectionSection);
 
     content = diagnosticMenu;
-    diagnosticSelectionLabel = text("نیسان زامیاد بنزینی  |  عظام SB13",15,true);
+    diagnosticSelectionLabel = text("خودرو: —   |   ECU: —",15,true);
     content.addView(diagnosticSelectionLabel);
-    button("شناسایی خودکار و اتصال ECU روی CAN", () -> startAutomaticCanScan());
-    button("انتخاب دستی ECU", () -> showManualEcuPicker());
-    button("خواندن خطاهای ECU", () -> { show(dtcSection); send("!2"); });
-    button("پاک‌کردن خطاهای ECU", () -> { show(dtcSection); confirmClear(); });
-    button("خواندن پارامترهای زنده", () -> { dynamicReturnTarget = home; show(dynamicParametersSection); prepareSb13Live(); });
-    button("قطع ارتباط CAN", () -> send("!0"));
+    button("اتصال به دستگاه (Wi-Fi)", () -> connect());
+    button("اتصال به ECU", () -> send("!1"));
+    button("شناسایی", () -> show(ecuSection));
+    button("خواندن عیب", () -> { show(dtcSection); send("!2"); });
+    button("پاک کردن عیب", () -> { show(dtcSection); confirmClear(); });
+    button("داشبورد زنده موتور", () -> show(dashboardSection));
+    button("۳۵ پارامتر ECU زیمنس پراید", () -> show(prideSiemensSection));
+    button("عیب‌یابی Bosch زامیاد 7.9.7.1", () -> show(boschServiceSection));
+    button("پارامترها", () -> show(parametersMenu));
+    button("همه پارامترهای زنده (پویا)", () -> { dynamicReturnTarget = home; show(dynamicParametersSection); });
+    button("عملگرها", () -> show(actuatorSection));
+    button("ریست کردن مقادیر سازگار یافته", () -> show(resetSection));
+    button("نمودار", () -> show(chartSection));
+    button("قطع اتصال", () -> disconnect());
+    button("تغییر شرکت / ECU", () -> show(home));
+    button("⚙ تنظیمات برنامه", () -> show(settingsSection));
+    button("به‌روزرسانی برنامه", () -> { refreshUpdateInfo(); show(updateSection); });
+    button("راهنما و اطلاعات نسخه", () -> show(helpSection));
     back(home);
 
     content = settingsSection;
@@ -651,6 +661,7 @@ public class MainActivity extends Activity {
     show(home);
     final String restoreKey = "home";
     selectedBrand = "نیسان زامیاد";
+    selectedSystemType = "بنزینی و دوگانه‌سوز";
     selectedEcu = "SB13";
     preferences.edit().putString("yasir.lastBrand", selectedBrand)
         .putString("yasir.lastEcu", selectedEcu).putString("yasir.lastScreen", "home").apply();
@@ -1078,30 +1089,148 @@ public class MainActivity extends Activity {
     }
   }
 
-  void openEcuMenu(String brand) {
-    selectedBrand = brand;
-    selectedBrandLabel.setText("شرکت انتخابی: " + brand);
-    if (prideSiemensChoice != null) {
-      prideSiemensChoice.setVisibility("سایپا".equals(brand) ? View.VISIBLE : View.GONE);
+  void addBrandDirectoryRow(LinearLayout parent, String name, String code, String subtitle) {
+    LinearLayout row = new LinearLayout(this);
+    row.setOrientation(LinearLayout.HORIZONTAL);
+    row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setPadding(dp(12), dp(8), dp(12), dp(8));
+    row.setBackground(panelDrawable(Color.rgb(24, 43, 65), Color.rgb(48, 91, 112), 13));
+    TextView badge = text(code, 11, true);
+    badge.setGravity(Gravity.CENTER);
+    badge.setTextColor(Color.rgb(90, 220, 208));
+    badge.setBackground(panelDrawable(Color.rgb(12, 31, 46), Color.rgb(46, 102, 119), 9));
+    row.addView(badge, new LinearLayout.LayoutParams(dp(76), dp(42)));
+    LinearLayout labels = new LinearLayout(this);
+    labels.setOrientation(LinearLayout.VERTICAL);
+    labels.setPadding(dp(11), 0, dp(8), 0);
+    TextView title = text(name, 16, true);
+    title.setTextColor(Color.rgb(239, 246, 252));
+    labels.addView(title);
+    TextView hint = text(subtitle, 10, false);
+    hint.setTextColor(Color.rgb(155, 193, 202));
+    labels.addView(hint);
+    row.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+    TextView arrow = text("‹", 24, true);
+    arrow.setTextColor(Color.rgb(84, 222, 205));
+    row.addView(arrow);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+    lp.setMargins(0, 0, 0, dp(7));
+    parent.addView(row, lp);
+    row.setOnClickListener(v -> openEcuMenu(name));
+  }
+
+  void showSystemCatalog() {
+    systemSelectionSection.removeAllViews();
+    systemSelectionSection.setPadding(dp(12), dp(8), dp(12), dp(10));
+    TextView heading = text(selectedBrand + "  |  انتخاب سیستم یا یونیت", 20, true);
+    heading.setTextColor(Color.rgb(235, 246, 255));
+    systemSelectionSection.addView(heading);
+    TextView caption = text("ابتدا نوع سامانه را انتخاب کنید؛ سپس مدل ECU یا یونیت مربوط نمایش داده می‌شود.", 13, false);
+    caption.setTextColor(Color.rgb(172, 199, 212));
+    systemSelectionSection.addView(caption);
+    String[] mainSystems = {"بنزینی و دوگانه‌سوز", "گازسوز (CNG/LPG)", "دیزل", "ترمز ضدقفل (ABS)", "بدنه و تجهیزات رفاهی", "ضدسرقت و ایموبیلایزر"};
+    String[] mainIcons = {"⚡", "⛽", "▰", "◉", "▦", "🔒"};
+    for (int i=0; i<mainSystems.length; i++) {
+      final String systemName = mainSystems[i];
+      addCatalogRow(systemSelectionSection, systemName, "موتور و سامانه‌های اصلی", mainIcons[i], () -> showEcuCatalog(systemName));
     }
-    if (boschZamyadChoice != null) {
-      boschZamyadChoice.setVisibility("زامیاد".equals(brand) ? View.VISIBLE : View.GONE);
+    TextView sideTitle = text("یونیت‌های جانبی", 17, true);
+    sideTitle.setTextColor(Color.rgb(94, 221, 208));
+    sideTitle.setPadding(0, dp(12), 0, dp(4));
+    systemSelectionSection.addView(sideTitle);
+    String[] sideUnits = {"کیسه هوا (SRS)", "گیربکس اتوماتیک (TCU)", "صفحه کیلومتر و پشت‌آمپر", "فرمان برقی (EPS)", "تهویه مطبوع", "بدنه و BCM/BSI"};
+    String[] sideIcons = {"✚", "⚙", "▤", "↔", "❄", "▣"};
+    for (int i=0; i<sideUnits.length; i++) {
+      final String unit = sideUnits[i];
+      addCatalogRow(systemSelectionSection, unit, "یونیت جانبی خودرو", sideIcons[i], () -> showEcuCatalog(unit));
     }
+    addCatalogRow(systemSelectionSection, "بازگشت به برندها", "انتخاب سازنده دیگر", "‹", () -> show(home));
+    show(systemSelectionSection);
+  }
+
+  void addCatalogRow(LinearLayout parent, String title, String subtitle, String icon, Runnable action) {
+    LinearLayout row = new LinearLayout(this);
+    row.setOrientation(LinearLayout.HORIZONTAL);
+    row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setPadding(dp(12), dp(7), dp(12), dp(7));
+    row.setBackground(panelDrawable(Color.rgb(26, 48, 71), Color.rgb(49, 96, 117), 11));
+    TextView symbol = text(icon, 19, true);
+    symbol.setGravity(Gravity.CENTER);
+    symbol.setTextColor(Color.rgb(94, 220, 208));
+    row.addView(symbol, new LinearLayout.LayoutParams(dp(42), dp(42)));
+    LinearLayout names = new LinearLayout(this);
+    names.setOrientation(LinearLayout.VERTICAL);
+    names.setPadding(dp(8), 0, dp(4), 0);
+    TextView name = text(title, 15, true);
+    name.setTextColor(Color.rgb(239, 246, 252));
+    names.addView(name);
+    TextView detail = text(subtitle, 10, false);
+    detail.setTextColor(Color.rgb(151, 191, 203));
+    names.addView(detail);
+    row.addView(names, new LinearLayout.LayoutParams(0, -2, 1));
+    TextView next = text("‹", 22, true);
+    next.setTextColor(Color.rgb(94, 220, 208));
+    row.addView(next);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+    lp.setMargins(0, 0, 0, dp(6));
+    parent.addView(row, lp);
+    row.setOnClickListener(v -> action.run());
+  }
+
+  String[] ecuCatalogFor(String brand, String system) {
+    if ("زامیاد".equals(brand) && system.startsWith("بنزینی"))
+      return new String[]{"عظام SB13 بنزینی یورو ۵", "عظام SB13 دوگانه‌سوز یورو ۵", "بوش زامیاد 7.9.7.1", "زیمنس زامیاد بنزینی"};
+    if ("سایپا".equals(brand) && system.startsWith("بنزینی"))
+      return new String[]{"زیمنس پراید • پروفایل فعال", "ساژم پراید SL96", "بوش M7.9.7.1", "زیمنس دوگانه‌سوز"};
+    if (system.contains("ABS")) return new String[]{"Bosch ABS", "Continental / Teves ABS", "Mando ABS", "ATE ABS"};
+    if (system.contains("ایموبیلایزر") || system.contains("ضدسرقت")) return new String[]{"یونیت ایموبیلایزر", "IMMO / کلید و آنتن", "BCM دارای ایموبیلایزر"};
+    if (system.contains("کیسه هوا")) return new String[]{"یونیت ایربگ SRS", "Bosch / Continental SRS", "Autoliv SRS"};
+    if (system.contains("گیربکس")) return new String[]{"TCU گیربکس اتوماتیک", "Jatco TCM", "ZF / Bosch TCM"};
+    if (system.contains("کیلومتر")) return new String[]{"صفحه کیلومتر", "پشت‌آمپر و یونیت نمایشگر", "یونیت شبکه بدنه"};
+    if (system.contains("فرمان")) return new String[]{"یونیت فرمان برقی EPS", "ستون فرمان برقی"};
+    if (system.contains("تهویه")) return new String[]{"یونیت تهویه مطبوع", "Climate Control"};
+    if (system.contains("بدنه") || system.contains("BCM")) return new String[]{"BCM / BSI", "یونیت بدنه و رفاهی", "یونیت مرکزی قفل و شیشه‌ها"};
+    if (system.contains("گازسوز")) return new String[]{"ECU گاز CNG", "ECU دوگانه‌سوز", "واحد کنترل LPG"};
+    if (system.equals("دیزل")) return new String[]{"Bosch EDC", "Delphi Diesel", "Denso Diesel", "Siemens Diesel"};
+    return new String[]{"Bosch ME7.4.4 / ME7.4.5", "Siemens SIM2K-34VR", "Sagem S2000 / SL96", "ECU بنزینی دوگانه‌سوز"};
+  }
+
+  void showEcuCatalog(String system) {
+    selectedSystemType = system;
+    ecuSelectionSection.removeAllViews();
+    ecuSelectionSection.setPadding(dp(12), dp(8), dp(12), dp(10));
+    selectedBrandLabel = text(selectedBrand + "  |  " + system, 19, true);
+    selectedBrandLabel.setTextColor(Color.rgb(235, 246, 255));
+    ecuSelectionSection.addView(selectedBrandLabel);
+    TextView note = text("کاتالوگ ECU و یونیت‌های رایج • پروفایل تأییدشده با نشان سبز مشخص است", 12, false);
+    note.setTextColor(Color.rgb(163, 196, 207));
+    ecuSelectionSection.addView(note);
+    for (String model : ecuCatalogFor(selectedBrand, system)) {
+      boolean active = model.contains("پروفایل فعال") || ("زامیاد".equals(selectedBrand) && model.startsWith("عظام SB13 بنزینی")) || ("زامیاد".equals(selectedBrand) && model.startsWith("بوش زامیاد 7.9.7.1"));
+      final String selectedModel = model;
+      addCatalogRow(ecuSelectionSection, model, active ? "پروفایل فعال در این نسخه" : "کاتالوگ • پروفایل اختصاصی نیازمند تأیید", active ? "●" : "○", () -> {
+        if (selectedModel.startsWith("عظام SB13 بنزینی")) chooseEcu("SB13");
+        else if (selectedModel.startsWith("عظام SB13 دوگانه")) chooseEcu("SB13 دوگانه‌سوز یورو ۵");
+        else if (selectedModel.startsWith("بوش زامیاد 7.9.7.1")) chooseEcu("بوش زامیاد 7.9.7.1");
+        else if (selectedModel.startsWith("زیمنس پراید")) chooseEcu("زیمنس پراید");
+        else chooseEcu(selectedModel);
+      });
+    }
+    addCatalogRow(ecuSelectionSection, "بازگشت به سیستم‌ها", "تغییر ECU یا یونیت", "‹", () -> show(systemSelectionSection));
     show(ecuSelectionSection);
   }
 
+  void openEcuMenu(String brand) {
+    selectedBrand = brand;
+    selectedSystemType = "";
+    showSystemCatalog();
+  }
+
   void showManualEcuPicker() {
-    final String[] options = {
-      "عظام SB13 — نیسان زامیاد بنزینی",
-      "ECU سازگار با OBD-II CAN — پروفایل عمومی"
-    };
-    new AlertDialog.Builder(this)
-      .setTitle("انتخاب دستی ECU")
-      .setItems(options, (dialog, which) -> {
-        selectManualEcu(which == 0 ? "SB13" : "OBD-II CAN عمومی");
-      })
-      .setNegativeButton("انصراف", null)
-      .show();
+    show(home);
+    setStatus("برند خودرو را انتخاب کنید و سپس ECU را از فهرست دستی برگزینید");
   }
 
   void selectManualEcu(String ecu) {
@@ -1172,8 +1301,8 @@ public class MainActivity extends Activity {
     if ("SB13".equals(ecu)) {
       diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: عظام SB13 بنزینی");
       requestProfileCommand("!PROFILE:SB13_CAN");
-      show(home);
-      setStatus("پروفایل SB13 انتخاب شد؛ برای شناسایی CAN، اتصال خودکار را بزنید");
+      show(sb13CanSection);
+      setStatus("پروفایل SB13 انتخاب شد؛ از همین صفحه اتصال خودکار CAN را اجرا کنید");
       return;
     }
     if ("زیمنس پراید".equals(ecu)) {
@@ -1217,6 +1346,7 @@ public class MainActivity extends Activity {
     if (screen == dynamicParametersSection) return "dynamic";
     if (screen == dtcSection) return "dtc";
     if (screen == ecuSelectionSection) return "ecuSelection";
+    if (systemSelectionSection != null && screen == systemSelectionSection) return "systemSelection";
     if (screen == speedSection) return "speed";
     if (screen == emissionsSection) return "emissions";
     if (screen == airSection) return "air";
@@ -1239,6 +1369,7 @@ public class MainActivity extends Activity {
     if ("dynamic".equals(key)) return dynamicParametersSection;
     if ("dtc".equals(key)) return dtcSection;
     if ("ecuSelection".equals(key)) return ecuSelectionSection;
+    if ("systemSelection".equals(key)) return systemSelectionSection;
     if ("speed".equals(key)) return speedSection;
     if ("emissions".equals(key)) return emissionsSection;
     if ("air".equals(key)) return airSection;
@@ -1278,6 +1409,7 @@ public class MainActivity extends Activity {
   @Override protected void onSaveInstanceState(Bundle state) {
     state.putString("yasir.screen", activeScreenKey);
     state.putString("yasir.brand", selectedBrand);
+    state.putString("yasir.system", selectedSystemType);
     state.putString("yasir.ecu", selectedEcu);
     state.putInt("yasir.scroll", scrollContainer == null ? 0 : scrollContainer.getScrollY());
     state.putBoolean("yasir.tcpConnected", tcpLive);
@@ -1344,7 +1476,8 @@ public class MainActivity extends Activity {
 
   @Override public void onBackPressed() {
     if(currentScreen == home) super.onBackPressed();
-    else if(currentScreen == ecuSelectionSection) show(home);
+    else if(currentScreen == ecuSelectionSection) show(systemSelectionSection);
+    else if(currentScreen == systemSelectionSection) show(home);
     else if(currentScreen == diagnosticMenu) show(home);
     else if(currentScreen == boschServiceSection || currentScreen == sb13CanSection) show(ecuSelectionSection);
     else if(currentScreen == boschZamyadSection) show(boschServiceSection);
