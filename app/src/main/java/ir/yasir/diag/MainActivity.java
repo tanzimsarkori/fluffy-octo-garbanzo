@@ -40,6 +40,7 @@ public class MainActivity extends Activity {
   // Keep the top connection badge at a fixed size and show only real TCP state.
   final Runnable showRealTcpLoss = () -> displayTcpBadge(false);
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
+  LinearLayout appBrandHeader;
   LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, ecuSelectionSection, diagnosticMenu, settingsSection, updateSection, helpSection;
   LinearLayout dynamicReturnTarget;
   ScrollView scrollContainer;
@@ -196,6 +197,7 @@ public class MainActivity extends Activity {
     header.setPadding(dp(8), dp(7), dp(8), dp(7));
     header.setTag("hero-header");
     header.setBackground(panelDrawable(Color.rgb(3, 17, 15), Color.rgb(20, 72, 48), 18));
+    appBrandHeader = header;
     LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(-1, -2);
     headerParams.setMargins(0, 0, 0, dp(10));
     ImageView brandLogo = new ImageView(this);
@@ -273,11 +275,11 @@ public class MainActivity extends Activity {
     actuatorSection = section("عملگرها");
     resetSection = section("ریست مقادیر سازگار یافته");
     chartSection = section("نمودارها");
-    dynamicParametersSection = section("نمایشگر تعمیرگاهی • پارامترهای زنده");
+    dynamicParametersSection = section("");
     prideSiemensSection = section("ECU زیمنس پراید • ۳۵ پارامتر زنده");
     boschZamyadSection = section("ECU بوش زامیاد 7.9.7.1 • داده زنده آزمایشی");
     boschServiceSection = section("ECU بوش زامیاد 7.9.7.1 — خطاها و عملگرها");
-    sb13CanSection = section("نیسان زامیاد بنزینی • عظام SB13 • CAN");
+    sb13CanSection = section("");
     ecuSelectionSection = section("انتخاب ECU");
     diagnosticMenu = section("منوی عیب‌یابی");
     settingsSection = section("تنظیمات ظاهری و برنامه");
@@ -330,20 +332,23 @@ public class MainActivity extends Activity {
     addUtilityCard(toolsGrid, "اتصال", "E-MAX", "⌁", () -> connect());
 
     content = sb13CanSection;
-    content.addView(text("این گزینه از OBD-II عمومی روی CAN استفاده می‌کند: خواندن و پاک‌کردن کدهای عمومی و چند پارامتر استاندارد. سرویس اختصاصی عظام SB13 و عملگرها هنوز تأیید نشده‌اند.",15,false));
+    styleBlueWorkshopPage(sb13CanSection);
+    content.addView(blueWorkshopHeader("یاسر دیاگ", "نیسان زامیاد • SB13 بنزینی یورو ۵"));
     sb13CanUpdated = text("هنوز پارامتر زنده‌ای دریافت نشده است", 13, false);
+    sb13CanUpdated.setGravity(Gravity.CENTER);
+    sb13CanUpdated.setTextColor(Color.rgb(197, 223, 255));
     content.addView(sb13CanUpdated);
-    button("اتصال Wi-Fi به دستگاه", () -> connect());
-    button("اتصال / شناسایی ECU روی CAN", () -> send("!1"));
-    button("خواندن خطاهای عمومی", () -> { show(dtcSection); send("!2"); });
-    button("پاک‌کردن خطاهای عمومی", () -> confirmClear());
-    button("خواندن پارامترهای زنده استاندارد", () -> {
+    blueWorkshopRow(content, "جستجوی خودکار ECU روی CAN", "⌕", () -> send("!1"));
+    blueWorkshopRow(content, "SB13 بنزینی یورو ۵", "⚡", () -> send("!1"));
+    blueWorkshopRow(content, "خواندن پارامترهای زنده", "▤", () -> {
       dynamicReturnTarget = sb13CanSection;
       show(dynamicParametersSection);
       prepareSb13Live();
     });
-    button("قطع ارتباط CAN", () -> send("!0"));
-    back(ecuSelectionSection);
+    blueWorkshopRow(content, "خواندن خطاهای ECU", "⚠", () -> { show(dtcSection); send("!2"); });
+    blueWorkshopRow(content, "پاک‌کردن خطاهای ECU", "×", () -> confirmClear());
+    blueWorkshopRow(content, "قطع ارتباط CAN", "⏻", () -> send("!0"));
+    blueWorkshopRow(content, "بازگشت", "‹", () -> show(ecuSelectionSection));
 
     content = ecuSelectionSection;
     selectedBrandLabel = text("شرکت انتخابی: —",18,true);
@@ -418,7 +423,7 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.5 • بوش زامیاد، خطاها و ۱۵ عملگر با ایمنی بیشتر",16,true));
+    content.addView(text("نسخه برنامه: 2.5.7 • رابط آبی تعمیرگاهی SB13",16,true));
     content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل‌های عملیاتی: زیمنس پراید و بوش زامیاد 7.9.7.1.",14,false));
     content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
@@ -525,13 +530,17 @@ public class MainActivity extends Activity {
     content.addView(text("نمودارهای زنده در نسخه بعدی اضافه می‌شوند؛ مقادیر عددی فعلاً در بخش پارامترها در دسترس‌اند.",16,false));
     back(home);
     content = dynamicParametersSection;
-    content.addView(text("نمایش مرتب پارامترهای زندهٔ پاسخ‌داده‌شده از ECU • ولتاژ و مقادیر اصلی در ابتدای فهرست",13,false));
+    styleBlueWorkshopPage(dynamicParametersSection);
+    content.addView(blueWorkshopHeader("یاسر دیاگ", "داده‌های زنده • SB13 CAN"));
+    TextView liveIntro = text("پارامترهای پاسخ‌داده‌شده از ECU", 12, false);
+    liveIntro.setTextColor(Color.rgb(190, 220, 255));
+    content.addView(liveIntro);
     dynamicParameterList = new LinearLayout(this);
     dynamicParameterList.setOrientation(LinearLayout.VERTICAL);
     dynamicParameterList.setPadding(0, dp(6), 0, 0);
     dynamicParametersSection.addView(dynamicParameterList);
     dynamicReturnTarget = home;
-    button("بازگشت", () -> show(dynamicReturnTarget == null ? home : dynamicReturnTarget));
+    blueWorkshopRow(content, "بازگشت", "‹", () -> show(dynamicReturnTarget == null ? home : dynamicReturnTarget));
 
     content = prideSiemensSection;
     content.addView(text("پروفایل زیمنس پراید • نمایش تعمیرگاهی ۳۵ پارامتر", 18, true));
@@ -789,6 +798,69 @@ public class MainActivity extends Activity {
     d.setCornerRadius(radiusDp * getResources().getDisplayMetrics().density);
     d.setStroke(Math.max(1, (int)(getResources().getDisplayMetrics().density)), stroke);
     return d;
+  }
+
+  GradientDrawable blueDiagnosticDrawable(boolean alternate) {
+    GradientDrawable d = new GradientDrawable(
+      GradientDrawable.Orientation.LEFT_RIGHT,
+      alternate
+        ? new int[]{Color.rgb(0, 83, 196), Color.rgb(0, 139, 232)}
+        : new int[]{Color.rgb(3, 48, 145), Color.rgb(0, 111, 215)});
+    d.setCornerRadius(dp(3));
+    d.setStroke(Math.max(1, dp(1)), Color.rgb(205, 232, 255));
+    return d;
+  }
+
+  void styleBlueWorkshopPage(LinearLayout page) {
+    page.setPadding(dp(8), dp(7), dp(8), dp(14));
+    page.setBackgroundColor(Color.rgb(3, 20, 63));
+  }
+
+  TextView blueWorkshopHeader(String title, String subtitle) {
+    LinearLayout header = new LinearLayout(this);
+    header.setOrientation(LinearLayout.VERTICAL);
+    header.setGravity(Gravity.CENTER);
+    header.setPadding(dp(8), dp(5), dp(8), dp(6));
+    GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+      new int[]{Color.rgb(4, 22, 78), Color.rgb(5, 50, 137)});
+    bg.setCornerRadius(dp(2));
+    bg.setStroke(dp(1), Color.rgb(210, 235, 255));
+    header.setBackground(bg);
+    TextView titleView = text(title, 16, true);
+    titleView.setTextColor(Color.WHITE);
+    titleView.setGravity(Gravity.CENTER);
+    TextView subtitleView = text(subtitle, 11, false);
+    subtitleView.setTextColor(Color.rgb(185, 224, 255));
+    subtitleView.setGravity(Gravity.CENTER);
+    header.addView(titleView);
+    header.addView(subtitleView);
+    LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
+    p.setMargins(0, 0, 0, dp(6));
+    content.addView(header, p);
+    return titleView;
+  }
+
+  void blueWorkshopRow(LinearLayout parent, String title, String icon, Runnable action) {
+    LinearLayout row = new LinearLayout(this);
+    row.setOrientation(LinearLayout.HORIZONTAL);
+    row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setMinimumHeight(dp(52));
+    row.setPadding(dp(7), dp(5), dp(5), dp(5));
+    row.setBackground(blueDiagnosticDrawable(parent.getChildCount() % 2 == 0));
+    TextView label = text(title, 15, true);
+    label.setTextColor(Color.WHITE);
+    label.setGravity(Gravity.CENTER);
+    row.addView(label, new LinearLayout.LayoutParams(0, -1, 1));
+    TextView symbol = text(icon, 20, true);
+    symbol.setTextColor(Color.rgb(8, 43, 100));
+    symbol.setGravity(Gravity.CENTER);
+    symbol.setBackground(panelDrawable(Color.rgb(226, 240, 255), Color.WHITE, 2));
+    row.addView(symbol, new LinearLayout.LayoutParams(dp(42), dp(40)));
+    LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
+    p.setMargins(0, 0, 0, dp(3));
+    parent.addView(row, p);
+    row.setOnClickListener(v -> action.run());
   }
 
   LinearLayout sectionTitle(String title, String subtitle, String icon) {
@@ -1185,6 +1257,9 @@ public class MainActivity extends Activity {
     }
     currentScreen = screen;
     activeScreenKey = screenKey(screen);
+    boolean compactBlueWorkshop = screen == sb13CanSection || screen == dynamicParametersSection;
+    if (appBrandHeader != null)
+      appBrandHeader.setVisibility(compactBlueWorkshop ? View.GONE : View.VISIBLE);
     screen.setVisibility(View.VISIBLE);
     preferences.edit().putString("yasir.lastScreen", activeScreenKey)
         .putString("yasir.lastBrand", selectedBrand)
@@ -1471,8 +1546,10 @@ public class MainActivity extends Activity {
         bg.setStroke(1, themeMode == 1 ? Color.rgb(67, 125, 144) : Color.rgb(31, 44, 112));
         layout.setBackground(bg);
       } else if (tag instanceof String && ((String)tag).startsWith("dynamic-row:")) {
-        layout.setBackground(panelDrawable(cardBackground(), themeMode == 1 ?
-          Color.rgb(42, 107, 112) : Color.rgb(54, 76, 92), 12));
+        int rowRank = 0;
+        try { rowRank = Integer.parseInt(((String)tag).substring("dynamic-row:".length())); }
+        catch (Exception ignored) {}
+        layout.setBackground(blueDiagnosticDrawable((rowRank & 1) == 0));
       } else if ("table-row".equals(tag) || "pride-row".equals(tag)) {
         boolean alternate = (layout.getChildCount() % 2 == 0);
         layout.setBackgroundColor(rowBackground(alternate));
@@ -1486,7 +1563,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.5\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.5.7\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -1746,34 +1823,36 @@ public class MainActivity extends Activity {
       row.setOrientation(LinearLayout.HORIZONTAL);
       row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
       row.setGravity(Gravity.CENTER_VERTICAL);
-      row.setPadding(dp(12), dp(9), dp(12), dp(9));
+      row.setPadding(dp(7), dp(6), dp(5), dp(6));
       row.setTag("dynamic-row");
-      row.setBackground(panelDrawable(cardBackground(), themeMode == 1 ?
-        Color.rgb(42, 107, 112) : Color.rgb(54, 76, 92), 12));
+      row.setBackground(blueDiagnosticDrawable((dynamicParameterList.getChildCount() & 1) == 0));
       LinearLayout labelColumn = new LinearLayout(this);
       labelColumn.setOrientation(LinearLayout.VERTICAL);
       labelColumn.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+      labelColumn.setPadding(dp(4), 0, dp(5), 0);
       TextView label = text(name == null ? id : name, 14, true);
       label.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
       label.setPadding(dp(3), dp(1), dp(3), dp(1));
-      label.setTextColor(foregroundColor());
+      label.setTextColor(Color.WHITE);
       TextView state = text(statusText == null || statusText.trim().isEmpty() ? "در انتظار داده" : statusText, 10, false);
       state.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
       state.setPadding(dp(3), dp(1), dp(3), dp(1));
-      state.setTextColor(themeMode == 1 ? Color.rgb(109, 223, 187) : Color.rgb(124, 157, 172));
+      state.setTextColor(Color.rgb(187, 222, 255));
       labelColumn.addView(label);
       labelColumn.addView(state);
       row.addView(labelColumn, new LinearLayout.LayoutParams(0, -2, 1.55f));
       val = text("—", 19, true);
-      val.setTextColor(teal);
+      val.setTextColor(Color.WHITE);
       val.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
       val.setPadding(dp(4), 0, dp(4), 0);
       row.addView(val, new LinearLayout.LayoutParams(0, -2, 1.0f));
-      View accent = new View(this);
-      accent.setBackgroundColor(teal);
-      LinearLayout.LayoutParams accentParams = new LinearLayout.LayoutParams(dp(3), dp(34));
-      accentParams.setMargins(dp(8), 0, 0, 0);
-      row.addView(accent, accentParams);
+      TextView iconMark = text("◉", 16, true);
+      iconMark.setTextColor(Color.rgb(4, 42, 108));
+      iconMark.setGravity(Gravity.CENTER);
+      iconMark.setBackground(panelDrawable(Color.rgb(222, 239, 255), Color.WHITE, 2));
+      LinearLayout.LayoutParams accentParams = new LinearLayout.LayoutParams(dp(32), dp(32));
+      accentParams.setMargins(dp(3), 0, 0, 0);
+      row.addView(iconMark, accentParams);
       int rank = dynamicParameterRank(id);
       int insertion = 0;
       while (insertion < dynamicParameterList.getChildCount()) {
@@ -1788,7 +1867,7 @@ public class MainActivity extends Activity {
       }
       row.setTag("dynamic-row:" + rank);
       LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, -2);
-      rowParams.setMargins(0, 0, 0, dp(7));
+      rowParams.setMargins(0, 0, 0, dp(3));
       dynamicParameterList.addView(row, insertion, rowParams);
       dynamicParameterValues.put(id, val);
       dynamicParameterNames.put(id, label);
@@ -1803,6 +1882,12 @@ public class MainActivity extends Activity {
     String shown = value == null || value.equals("null") ? "—" : value;
     if (unit != null && !unit.trim().isEmpty()) shown += " " + unit;
     if (!shown.contentEquals(val.getText())) val.setText(shown);
+    TextView stateView = dynamicParameterStatuses.get(id);
+    if (stateView != null) {
+      boolean failed = statusText != null && (statusText.contains("پاسخی") || statusText.contains("عدم پاسخ") || statusText.contains("خطا"));
+      stateView.setTextColor(failed ? Color.rgb(255, 205, 130) : Color.rgb(187, 222, 255));
+      val.setTextColor((value == null || "—".equals(value)) ? Color.rgb(255, 214, 145) : Color.WHITE);
+    }
   }
 
   int dynamicParameterRank(String id) {
