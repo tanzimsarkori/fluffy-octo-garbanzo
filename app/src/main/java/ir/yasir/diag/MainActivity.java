@@ -333,7 +333,7 @@ public class MainActivity extends Activity {
 
     content = sb13CanSection;
     styleBlueWorkshopPage(sb13CanSection);
-    content.addView(blueWorkshopHeader("یاسر دیاگ", "نیسان زامیاد • SB13 بنزینی یورو ۵"));
+    blueWorkshopHeader("یاسر دیاگ", "نیسان زامیاد • SB13 بنزینی یورو ۵");
     sb13CanUpdated = text("هنوز پارامتر زنده‌ای دریافت نشده است", 13, false);
     sb13CanUpdated.setGravity(Gravity.CENTER);
     sb13CanUpdated.setTextColor(Color.rgb(197, 223, 255));
@@ -531,7 +531,7 @@ public class MainActivity extends Activity {
     back(home);
     content = dynamicParametersSection;
     styleBlueWorkshopPage(dynamicParametersSection);
-    content.addView(blueWorkshopHeader("یاسر دیاگ", "داده‌های زنده • SB13 CAN"));
+    blueWorkshopHeader("یاسر دیاگ", "داده‌های زنده • SB13 CAN");
     TextView liveIntro = text("پارامترهای پاسخ‌داده‌شده از ECU", 12, false);
     liveIntro.setTextColor(Color.rgb(190, 220, 255));
     content.addView(liveIntro);
