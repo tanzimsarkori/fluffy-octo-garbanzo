@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
   final Runnable showRealTcpLoss = () -> displayTcpBadge(false);
   LinearLayout content, root, home, parametersMenu, speedSection, emissionsSection, ignitionSection, airSection, fuelSection, dtcSection, ecuSection, actuatorSection, resetSection, chartSection;
   LinearLayout appBrandHeader;
-  LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, systemSelectionSection, ecuSelectionSection, diagnosticMenu, settingsSection, updateSection, helpSection;
+  LinearLayout currentScreen, dynamicParametersSection, dynamicParameterList, systemSelectionSection, ecuSelectionSection, autoSearchSection, diagnosticMenu, settingsSection, updateSection, helpSection;
   LinearLayout dynamicReturnTarget;
   ScrollView scrollContainer;
   final HashMap<String, Integer> screenScrollPositions = new HashMap<>();
@@ -53,7 +53,7 @@ public class MainActivity extends Activity {
   boolean exiting = false;
   final HashMap<Integer, Bitmap> vehiclePhotoCache = new HashMap<>();
   final HashMap<Integer, Boolean> vehiclePhotoLoading = new HashMap<>();
-  TextView selectedBrandLabel, diagnosticSelectionLabel, prideSiemensUpdated;
+  TextView selectedBrandLabel, diagnosticSelectionLabel, prideSiemensUpdated, autoSearchStatus;
   Button prideSiemensChoice, boschZamyadChoice;
   LinearLayout boschServiceSection, sb13CanSection;
   TextView sb13CanUpdated;
@@ -282,6 +282,7 @@ public class MainActivity extends Activity {
     boschServiceSection = section("ECU بوش زامیاد 7.9.7.1 — خطاها و عملگرها");
     sb13CanSection = section("");
     systemSelectionSection = section("انتخاب سیستم و یونیت");
+    autoSearchSection = section("جستجوی خودکار ECU");
     ecuSelectionSection = section("انتخاب ECU یا یونیت");
     diagnosticMenu = section("منوی عیب‌یابی");
     settingsSection = section("تنظیمات ظاهری و برنامه");
@@ -289,12 +290,12 @@ public class MainActivity extends Activity {
     helpSection = section("راهنما و اطلاعات برنامه");
 
     content = home;
-    content.addView(sectionTitle("انتخاب سازنده خودرو", "برند خودرو را انتخاب کنید تا ECU و یونیت‌ها را ببینید", "🚘"));
+    content.addView(sectionTitle("انتخاب سازنده خودرو", "برند خودرو را انتخاب کنید تا ECU و یونیت‌ها را ببینید", "▣"));
     addBrandDirectoryRow(home, "ایران خودرو", "IKCO", "سمند، پژو، دنا و خانواده ملی");
     addBrandDirectoryRow(home, "سایپا", "SAIPA", "پراید، تیبا، ساینا، کوییک و شاهین");
     addBrandDirectoryRow(home, "پارس خودرو", "PARS", "محصولات پارس‌خودرو و پلتفرم‌های مشترک");
-    addBrandDirectoryRow(home, "زامیاد", "ZMYD", "نیسان زامیاد • بنزینی و دوگانه‌سوز");
-    addBrandDirectoryRow(home, "بهمن", "BAHM", "سواری، وانت و خودروهای تجاری");
+    addBrandDirectoryRow(home, "زامیاد", "ZAMYAD", "نیسان زامیاد • بنزینی و دوگانه‌سوز");
+    addBrandDirectoryRow(home, "بهمن", "BAHMAN", "سواری، وانت و خودروهای تجاری");
     addBrandDirectoryRow(home, "کرمان موتور", "KMC", "جک، کی‌ام‌سی و خودروهای مونتاژی");
     addBrandDirectoryRow(home, "مدیران خودرو", "MVM", "ام‌وی‌ام، چری و فونیکس");
     addBrandDirectoryRow(home, "رنو", "RENAULT", "تندر، ساندرو و خانواده رنو");
@@ -330,6 +331,24 @@ public class MainActivity extends Activity {
     content.addView(selectedBrandLabel);
     content.addView(text("مدل ECU یا یونیت را انتخاب کنید. گزینه‌های دارای نشان «پروفایل فعال» در این نسخه پشتیبانی عملیاتی دارند؛ بقیه فقط در کاتالوگ نمایش داده می‌شوند.",14,false));
     back(systemSelectionSection);
+
+    content = autoSearchSection;
+    styleBlueWorkshopPage(autoSearchSection);
+    blueWorkshopHeader("یاسر دیاگ", "شناسایی خودکار ECU • شبکه CAN");
+    autoSearchStatus = text("آمادهٔ جستجو\nبرند انتخابی: " + (selectedBrand.isEmpty() ? "انتخاب نشده" : selectedBrand), 15, true);
+    autoSearchStatus.setTextColor(Color.rgb(197, 223, 255));
+    autoSearchStatus.setGravity(Gravity.CENTER);
+    autoSearchStatus.setPadding(dp(10), dp(18), dp(10), dp(18));
+    autoSearchSection.addView(autoSearchStatus);
+    blueWorkshopRow(autoSearchSection, "شروع / تکرار جستجوی خودکار", "CAN", () -> startAutomaticCanScan());
+    blueWorkshopRow(autoSearchSection, "خواندن پارامترهای زنده", "▤", () -> {
+      dynamicReturnTarget = autoSearchSection;
+      show(dynamicParametersSection);
+      prepareSb13Live();
+    });
+    blueWorkshopRow(autoSearchSection, "خواندن خطاهای ECU", "DTC", () -> { show(dtcSection); send("!2"); });
+    blueWorkshopRow(autoSearchSection, "انتخاب دستی ECU یا یونیت", "≡", () -> show(systemSelectionSection));
+    blueWorkshopRow(autoSearchSection, "بازگشت به برندها", "‹", () -> show(home));
 
     content = diagnosticMenu;
     diagnosticSelectionLabel = text("خودرو: —   |   ECU: —",15,true);
@@ -378,8 +397,8 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.6.0 • فهرست برندها، ECU و یونیت‌ها",16,true));
-    content.addView(text("ارتباط فعلی: Wi‑Fi به E-MAX، TCP پورت 3333؛ کاتالوگ برندها و یونیت‌ها همراه پروفایل‌های عملیاتی.",14,false));
+    content.addView(text("نسخه برنامه: 2.6.1 • جستجوی خودکار و کاتالوگ برندها",16,true));
+    content.addView(text("ارتباط فعلی: Wi‑Fi به E-MAX، TCP پورت 3333؛ جستجوی خودکار CAN و انتخاب دستی ECU/یونیت.",14,false));
     content.addView(text("شناسایی خودکار، پاسخ OBD-II و مشخصات شبکه CAN را پیدا می‌کند. برای تعیین مدل ECU از انتخاب دستی استفاده کنید.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
     content.addView(text("آخرین پیام ارتباط و عیب‌یابی (جزئیات خارج از نوار ثابت بالا)", 14, true));
@@ -1096,7 +1115,7 @@ public class MainActivity extends Activity {
     row.setGravity(Gravity.CENTER_VERTICAL);
     row.setPadding(dp(12), dp(8), dp(12), dp(8));
     row.setBackground(panelDrawable(Color.rgb(24, 43, 65), Color.rgb(48, 91, 112), 13));
-    TextView badge = text(code, 11, true);
+    TextView badge = text(code, code.length() > 7 ? 8 : code.length() > 5 ? 9 : 11, true);
     badge.setGravity(Gravity.CENTER);
     badge.setTextColor(Color.rgb(90, 220, 208));
     badge.setBackground(panelDrawable(Color.rgb(12, 31, 46), Color.rgb(46, 102, 119), 9));
@@ -1129,8 +1148,13 @@ public class MainActivity extends Activity {
     TextView caption = text("ابتدا نوع سامانه را انتخاب کنید؛ سپس مدل ECU یا یونیت مربوط نمایش داده می‌شود.", 13, false);
     caption.setTextColor(Color.rgb(172, 199, 212));
     systemSelectionSection.addView(caption);
+    addCatalogRow(systemSelectionSection, "جستجوی خودکار ECU", "یافتن پاسخ ECU روی CAN", "CAN", () -> startAutomaticCanScan());
+    TextView manualTitle = text("انتخاب دستی سیستم", 16, true);
+    manualTitle.setTextColor(Color.rgb(94, 221, 208));
+    manualTitle.setPadding(0, dp(10), 0, dp(4));
+    systemSelectionSection.addView(manualTitle);
     String[] mainSystems = {"بنزینی و دوگانه‌سوز", "گازسوز (CNG/LPG)", "دیزل", "ترمز ضدقفل (ABS)", "بدنه و تجهیزات رفاهی", "ضدسرقت و ایموبیلایزر"};
-    String[] mainIcons = {"⚡", "⛽", "▰", "◉", "▦", "🔒"};
+    String[] mainIcons = {"ECU", "CNG", "D", "ABS", "BCM", "IMMO"};
     for (int i=0; i<mainSystems.length; i++) {
       final String systemName = mainSystems[i];
       addCatalogRow(systemSelectionSection, systemName, "موتور و سامانه‌های اصلی", mainIcons[i], () -> showEcuCatalog(systemName));
@@ -1140,7 +1164,7 @@ public class MainActivity extends Activity {
     sideTitle.setPadding(0, dp(12), 0, dp(4));
     systemSelectionSection.addView(sideTitle);
     String[] sideUnits = {"کیسه هوا (SRS)", "گیربکس اتوماتیک (TCU)", "صفحه کیلومتر و پشت‌آمپر", "فرمان برقی (EPS)", "تهویه مطبوع", "بدنه و BCM/BSI"};
-    String[] sideIcons = {"✚", "⚙", "▤", "↔", "❄", "▣"};
+    String[] sideIcons = {"SRS", "TCU", "CL", "EPS", "HVAC", "BCM"};
     for (int i=0; i<sideUnits.length; i++) {
       final String unit = sideUnits[i];
       addCatalogRow(systemSelectionSection, unit, "یونیت جانبی خودرو", sideIcons[i], () -> showEcuCatalog(unit));
@@ -1156,7 +1180,7 @@ public class MainActivity extends Activity {
     row.setGravity(Gravity.CENTER_VERTICAL);
     row.setPadding(dp(12), dp(7), dp(12), dp(7));
     row.setBackground(panelDrawable(Color.rgb(26, 48, 71), Color.rgb(49, 96, 117), 11));
-    TextView symbol = text(icon, 19, true);
+    TextView symbol = text(icon, icon.length() > 3 ? 10 : 12, true);
     symbol.setGravity(Gravity.CENTER);
     symbol.setTextColor(Color.rgb(94, 220, 208));
     row.addView(symbol, new LinearLayout.LayoutParams(dp(42), dp(42)));
@@ -1254,14 +1278,21 @@ public class MainActivity extends Activity {
     show(home);
   }
 
+  void updateAutoSearchResult(String message) {
+    if (autoSearchStatus != null) ui.post(() -> autoSearchStatus.setText(message));
+  }
+
   void startAutomaticCanScan() {
-    selectedBrand = "نیسان زامیاد";
-    selectedEcu = "SB13";
+    if (selectedBrand == null || selectedBrand.trim().isEmpty()) selectedBrand = "زامیاد";
+    selectedEcu = "شناسایی خودکار OBD-II CAN";
     pendingProfileCommand = "!PROFILE:SB13_CAN";
     preferences.edit().putString("yasir.lastBrand", selectedBrand)
-        .putString("yasir.lastEcu", selectedEcu).putString("yasir.lastScreen", "home").apply();
+        .putString("yasir.lastEcu", selectedEcu).putString("yasir.lastScreen", "autoSearch").apply();
     scanAfterTcpConnect = true;
-    setStatus("در حال شناسایی خودکار ECU و جست‌وجوی پروتکل CAN...");
+    if (autoSearchStatus != null) autoSearchStatus.setText("در حال جستجوی خودکار ECU روی CAN\nبرند انتخابی: " + selectedBrand + "\nمدل دقیق پس از دریافت شناسه ECU اعلام می‌شود.");
+    diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: در حال شناسایی خودکار CAN");
+    show(autoSearchSection);
+    setStatus("در حال جستجوی خودکار ECU روی CAN...");
     if (!tcpLive || socket == null || socket.isClosed()) {
       connect();
       return;
@@ -1272,7 +1303,7 @@ public class MainActivity extends Activity {
     ui.postDelayed(() -> {
       if (tcpLive) {
         send("!1");
-        setStatus("پروفایل SB13 فعال شد؛ جست‌وجوی خودکار CAN شروع شد");
+        setStatus("جستجوی خودکار CAN آغاز شد؛ منتظر پاسخ ECU...");
       }
       scanAfterTcpConnect = false;
     }, 350);
@@ -1346,6 +1377,7 @@ public class MainActivity extends Activity {
     if (screen == dynamicParametersSection) return "dynamic";
     if (screen == dtcSection) return "dtc";
     if (screen == ecuSelectionSection) return "ecuSelection";
+    if (autoSearchSection != null && screen == autoSearchSection) return "autoSearch";
     if (systemSelectionSection != null && screen == systemSelectionSection) return "systemSelection";
     if (screen == speedSection) return "speed";
     if (screen == emissionsSection) return "emissions";
@@ -1369,6 +1401,7 @@ public class MainActivity extends Activity {
     if ("dynamic".equals(key)) return dynamicParametersSection;
     if ("dtc".equals(key)) return dtcSection;
     if ("ecuSelection".equals(key)) return ecuSelectionSection;
+    if ("autoSearch".equals(key)) return autoSearchSection;
     if ("systemSelection".equals(key)) return systemSelectionSection;
     if ("speed".equals(key)) return speedSection;
     if ("emissions".equals(key)) return emissionsSection;
@@ -1390,7 +1423,7 @@ public class MainActivity extends Activity {
     }
     currentScreen = screen;
     activeScreenKey = screenKey(screen);
-    boolean compactBlueWorkshop = screen == sb13CanSection || screen == dynamicParametersSection;
+    boolean compactBlueWorkshop = screen == sb13CanSection || screen == dynamicParametersSection || screen == autoSearchSection;
     if (appBrandHeader != null)
       appBrandHeader.setVisibility(compactBlueWorkshop ? View.GONE : View.VISIBLE);
     screen.setVisibility(View.VISIBLE);
@@ -1477,6 +1510,7 @@ public class MainActivity extends Activity {
   @Override public void onBackPressed() {
     if(currentScreen == home) super.onBackPressed();
     else if(currentScreen == ecuSelectionSection) show(systemSelectionSection);
+    else if(currentScreen == autoSearchSection) show(systemSelectionSection);
     else if(currentScreen == systemSelectionSection) show(home);
     else if(currentScreen == diagnosticMenu) show(home);
     else if(currentScreen == boschServiceSection || currentScreen == sb13CanSection) show(ecuSelectionSection);
@@ -1698,7 +1732,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.6.0\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.6.1\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -2400,16 +2434,22 @@ public class MainActivity extends Activity {
           setStatus("پاک‌کردن خطاها ناموفق بود؛ ECU پاسخ مثبت نداد");
         } else if (message.equals("OBD_CAN_CONNECTED_11BIT_500K")) {
           setStatus("اتصال CAN برقرار شد • شناسهٔ ۱۱بیتی • سرعت ۵۰۰ کیلوبیت‌برثانیه");
+          updateAutoSearchResult("ECU روی CAN پاسخ‌گو است\nشبکه: 11-bit • 500 kbit/s\nمدل دقیق در پاسخ استاندارد اعلام نشده است.");
         } else if (message.equals("OBD_CAN_CONNECTED_29BIT_500K")) {
           setStatus("اتصال CAN برقرار شد • شناسهٔ ۲۹بیتی • سرعت ۵۰۰ کیلوبیت‌برثانیه");
+          updateAutoSearchResult("ECU روی CAN پاسخ‌گو است\nشبکه: 29-bit • 500 kbit/s\nمدل دقیق در پاسخ استاندارد اعلام نشده است.");
         } else if (message.equals("OBD_CAN_CONNECTED_11BIT_250K")) {
           setStatus("اتصال CAN برقرار شد • شناسهٔ ۱۱بیتی • سرعت ۲۵۰ کیلوبیت‌برثانیه");
+          updateAutoSearchResult("ECU روی CAN پاسخ‌گو است\nشبکه: 11-bit • 250 kbit/s\nمدل دقیق در پاسخ استاندارد اعلام نشده است.");
         } else if (message.equals("OBD_CAN_CONNECTED_29BIT_250K")) {
           setStatus("اتصال CAN برقرار شد • شناسهٔ ۲۹بیتی • سرعت ۲۵۰ کیلوبیت‌برثانیه");
+          updateAutoSearchResult("ECU روی CAN پاسخ‌گو است\nشبکه: 29-bit • 250 kbit/s\nمدل دقیق در پاسخ استاندارد اعلام نشده است.");
         } else if (message.startsWith("CAN_PROBING_")) {
           setStatus("در حال جست‌وجوی پاسخ ECU روی CAN: " + message.replace("CAN_PROBING_", ""));
+          updateAutoSearchResult("در حال جستجوی ECU پاسخ‌گو روی CAN...\n" + message.replace("CAN_PROBING_", ""));
         } else if (message.equals("OBD_CAN_NO_RESPONSE")) {
-          setStatus("ECU به درخواست OBD-II عمومی پاسخ نداد؛ پشتیبانی این سرویس در SB13 تأیید نشده است");
+          setStatus("ECU به درخواست OBD-II عمومی پاسخ نداد؛ شبکه، سوئیچ و پروتکل اختصاصی را بررسی کنید");
+          updateAutoSearchResult("پاسخی از ECU روی OBD-II CAN دریافت نشد.\nممکن است پروتکل خودرو اختصاصی باشد؛ انتخاب دستی سیستم را باز کنید.");
         } else if (message.equals("OBD_CAN_NOT_CONNECTED")) {
           setStatus("ابتدا ECU را از راه CAN شناسایی و متصل کنید");
         } else if (message.equals("OBD_CAN_DISCONNECTED")) {
