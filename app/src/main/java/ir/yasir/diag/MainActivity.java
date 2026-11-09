@@ -378,8 +378,8 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.5.9 • دیاگ CAN عظام SB13",16,true));
-    content.addView(text("ارتباط فعلی: Wi‑Fi به E-MAX، TCP پورت 3333؛ ECU هدف: عظام SB13 نیسان زامیاد بنزینی.",14,false));
+    content.addView(text("نسخه برنامه: 2.6.0 • فهرست برندها، ECU و یونیت‌ها",16,true));
+    content.addView(text("ارتباط فعلی: Wi‑Fi به E-MAX، TCP پورت 3333؛ کاتالوگ برندها و یونیت‌ها همراه پروفایل‌های عملیاتی.",14,false));
     content.addView(text("شناسایی خودکار، پاسخ OBD-II و مشخصات شبکه CAN را پیدا می‌کند. برای تعیین مدل ECU از انتخاب دستی استفاده کنید.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
     content.addView(text("آخرین پیام ارتباط و عیب‌یابی (جزئیات خارج از نوار ثابت بالا)", 14, true));
@@ -1698,7 +1698,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.5.9\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.6.0\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
