@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
   String lastUiStatus = "";
   long lastUiStatusAt = 0;
   boolean tcpLive = false;
+  volatile boolean scanAfterTcpConnect = false;
   boolean exiting = false;
   final HashMap<Integer, Bitmap> vehiclePhotoCache = new HashMap<>();
   final HashMap<Integer, Boolean> vehiclePhotoLoading = new HashMap<>();
@@ -168,7 +169,7 @@ public class MainActivity extends Activity {
   @Override public void onCreate(Bundle b) {
     super.onCreate(b);
     preferences = getSharedPreferences("yasir_diag_settings", MODE_PRIVATE);
-    final String reopenScreenKey = preferences.getString("yasir.lastScreen", "home");
+    final String reopenScreenKey = "home";
     installCrashDiagnostics();
     uiScale = preferences.getFloat("ui_scale", 1.0f);
     themeMode = preferences.getInt("theme_mode", 3);
@@ -287,60 +288,34 @@ public class MainActivity extends Activity {
     helpSection = section("راهنما و اطلاعات برنامه");
 
     content = home;
-    content.addView(sectionTitle("انتخاب سازنده خودرو", "۹ گروه خودرو", "🚘"));
-    android.widget.GridLayout companyGrid = new android.widget.GridLayout(this);
-    companyGrid.setColumnCount(4);
-    companyGrid.setUseDefaultMargins(false);
-    companyGrid.setAlignmentMode(android.widget.GridLayout.ALIGN_BOUNDS);
-    companyGrid.setTag("company-grid");
-    home.addView(companyGrid, new LinearLayout.LayoutParams(-1, -2));
-    addIndustrialCompanyCard(companyGrid, "بهمن و مزدا", 3, "BM");
-    addIndustrialCompanyCard(companyGrid, "پارس خودرو", 2, "PA");
-    addIndustrialCompanyCard(companyGrid, "سایپا", 1, "SA");
-    addIndustrialCompanyCard(companyGrid, "ایران خودرو", 0, "IR");
-    addIndustrialCompanyCard(companyGrid, "سایر خودروها", 7, "•••");
-    addIndustrialCompanyCard(companyGrid, "رنو", 6, "RN");
-    addIndustrialCompanyCard(companyGrid, "کرمان موتور", 5, "KM");
-    addIndustrialCompanyCard(companyGrid, "دیار خودرو", 4, "DY");
-    addIndustrialCompanyCard(companyGrid, "زامیاد", 8, "ZM");
-
-    home.addView(sectionTitle("دسترسی سریع", "ابزارهای پرکاربرد", "⚡"));
-    android.widget.GridLayout quickGrid = new android.widget.GridLayout(this);
-    quickGrid.setColumnCount(2);
-    quickGrid.setUseDefaultMargins(false);
-    home.addView(quickGrid, new LinearLayout.LayoutParams(-1, -2));
-    addQuickCard(quickGrid, "عیب‌یابی سریع", "خواندن و پاک‌کردن خطاها", "⌕", Color.rgb(0, 174, 235), () -> { if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) { show(boschServiceSection); return; } selectedBrand = selectedBrand.isEmpty() ? "خودرو انتخاب‌نشده" : selectedBrand; if (selectedEcu.isEmpty()) selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu); show(diagnosticMenu); });
-    addQuickCard(quickGrid, "داده‌های زنده", "مشاهده پارامترهای لحظه‌ای", "▥", Color.rgb(0, 214, 133), () -> {
-      if ("زیمنس پراید".equals(selectedEcu)) show(prideSiemensSection);
-      else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) show(boschServiceSection);
-      else if ("SB13".equals(selectedEcu)) { dynamicReturnTarget = sb13CanSection; show(dynamicParametersSection); prepareSb13Live(); }
-      else show(dashboardSection);
+    styleBlueWorkshopPage(home);
+    blueWorkshopHeader("یاسر دیاگ", "نیسان زامیاد بنزینی • عظام SB13");
+    TextView ecuSummary = text("دریچه گاز برقی  |  اتصال عیب‌یابی روی CAN\nتشخیص خودکار ارتباط CAN یا انتخاب دستی ECU", 14, true);
+    ecuSummary.setGravity(Gravity.CENTER);
+    ecuSummary.setTextColor(Color.rgb(197, 223, 255));
+    ecuSummary.setPadding(dp(8), dp(10), dp(8), dp(10));
+    home.addView(ecuSummary);
+    blueWorkshopRow(home, "شناسایی خودکار و اتصال ECU روی CAN", "⌕", () -> startAutomaticCanScan());
+    blueWorkshopRow(home, "انتخاب دستی ECU", "▤", () -> showManualEcuPicker());
+    blueWorkshopRow(home, "خواندن پارامترهای زنده", "▥", () -> {
+      dynamicReturnTarget = home;
+      show(dynamicParametersSection);
+      prepareSb13Live();
     });
-    addQuickCard(quickGrid, "تست عملگرها", "تست‌های تعمیرگاهی", "⚙", Color.rgb(255, 176, 0), () -> show("بوش زامیاد 7.9.7.1".equals(selectedEcu) ? boschServiceSection : actuatorSection));
-    addQuickCard(quickGrid, "اطلاعات ECU", "شناسه و پروفایل انتخابی", "▤", Color.rgb(181, 93, 255), () -> show(ecuSection));
-
-    home.addView(sectionTitle("تنظیمات و ابزارها", "شخصی‌سازی و نگهداری", "⚙"));
-    android.widget.GridLayout toolsGrid = new android.widget.GridLayout(this);
-    toolsGrid.setColumnCount(6);
-    toolsGrid.setUseDefaultMargins(false);
-    home.addView(toolsGrid, new LinearLayout.LayoutParams(-1, -2));
-    addUtilityCard(toolsGrid, "تنظیمات", "برنامه", "⚙", () -> show(settingsSection));
-    addUtilityCard(toolsGrid, "ظاهر", "رنگ و اندازه", "▣", () -> show(settingsSection));
-    addUtilityCard(toolsGrid, "به‌روزرسانی", "نسخه جدید", "⟳", () -> { refreshUpdateInfo(); show(updateSection); });
-    addUtilityCard(toolsGrid, "گزارش‌ها", "خطا و داده", "▤", () -> show(dtcSection));
-    addUtilityCard(toolsGrid, "راهنما", "اطلاعات نسخه", "ⓘ", () -> show(helpSection));
-    addUtilityCard(toolsGrid, "اتصال", "E-MAX", "⌁", () -> connect());
+    blueWorkshopRow(home, "خواندن خطاهای ECU", "⚠", () -> { show(dtcSection); send("!2"); });
+    blueWorkshopRow(home, "پاک‌کردن خطاهای ECU", "×", () -> confirmClear());
+    blueWorkshopRow(home, "قطع ارتباط CAN", "⏻", () -> send("!0"));
 
     content = sb13CanSection;
     styleBlueWorkshopPage(sb13CanSection);
-    blueWorkshopHeader("یاسر دیاگ", "نیسان زامیاد • SB13 بنزینی یورو ۵");
-    sb13CanUpdated = text("هنوز پارامتر زنده‌ای دریافت نشده است", 13, false);
+    blueWorkshopHeader("یاسر دیاگ", "نیسان زامیاد بنزینی • عظام SB13");
+    sb13CanUpdated = text("پروفایل ECU انتخاب شده است", 13, false);
     sb13CanUpdated.setGravity(Gravity.CENTER);
     sb13CanUpdated.setTextColor(Color.rgb(197, 223, 255));
     content.addView(sb13CanUpdated);
-    blueWorkshopRow(content, "جستجوی خودکار ECU روی CAN", "⌕", () -> send("!1"));
-    blueWorkshopRow(content, "SB13 بنزینی یورو ۵", "⚡", () -> send("!1"));
-    blueWorkshopRow(content, "خواندن پارامترهای زنده", "▤", () -> {
+    blueWorkshopRow(content, "شناسایی خودکار و اتصال ECU روی CAN", "⌕", () -> startAutomaticCanScan());
+    blueWorkshopRow(content, "انتخاب دستی ECU", "▤", () -> showManualEcuPicker());
+    blueWorkshopRow(content, "خواندن پارامترهای زنده", "▥", () -> {
       dynamicReturnTarget = sb13CanSection;
       show(dynamicParametersSection);
       prepareSb13Live();
@@ -348,55 +323,25 @@ public class MainActivity extends Activity {
     blueWorkshopRow(content, "خواندن خطاهای ECU", "⚠", () -> { show(dtcSection); send("!2"); });
     blueWorkshopRow(content, "پاک‌کردن خطاهای ECU", "×", () -> confirmClear());
     blueWorkshopRow(content, "قطع ارتباط CAN", "⏻", () -> send("!0"));
-    blueWorkshopRow(content, "بازگشت", "‹", () -> show(ecuSelectionSection));
+    blueWorkshopRow(content, "بازگشت به صفحه اصلی", "‹", () -> show(home));
 
     content = ecuSelectionSection;
-    selectedBrandLabel = text("شرکت انتخابی: —",18,true);
+    selectedBrandLabel = text("نیسان زامیاد بنزینی",18,true);
     content.addView(selectedBrandLabel);
-    content.addView(text("ECU خودرو را انتخاب کنید. پروفایل زیمنس پراید با فریم‌ور V45 دارای ۳۵ پارامتر زنده است. پروفایل SIM2K-34VR و امکانات قبلی نیز حفظ شده‌اند؛ سایر انتخاب‌ها هنوز آزمایشی هستند.",14,false));
-    button("زیمنس SIM2K-34VR — پروفایل قبلی", () -> chooseEcu("زیمنس SIM2K-34VR"));
-    prideSiemensChoice = new Button(this);
-    prideSiemensChoice.setText("زیمنس پراید — ۳۵ پارامتر تأییدشده");
-    prideSiemensChoice.setAllCaps(false);
-    prideSiemensChoice.setVisibility(View.GONE);
-    prideSiemensChoice.setOnClickListener(v -> chooseEcu("زیمنس پراید"));
-    content.addView(prideSiemensChoice);
-    button("زیمنس", () -> chooseEcu("زیمنس"));
-    button("زیمنس دوگانه‌سوز", () -> chooseEcu("زیمنس دوگانه‌سوز"));
-    button("ساژم (SAGEM)", () -> chooseEcu("ساژم (SAGEM)"));
-    button("بوش (BOSCH)", () -> chooseEcu("بوش (BOSCH)"));
-    boschZamyadChoice = new Button(this);
-    boschZamyadChoice.setText("بوش زامیاد 7.9.7.1 — عیب‌یابی و ۱۵ عملگر");
-    boschZamyadChoice.setAllCaps(false);
-    boschZamyadChoice.setVisibility(View.GONE);
-    boschZamyadChoice.setOnClickListener(v -> chooseEcu("بوش زامیاد 7.9.7.1"));
-    content.addView(boschZamyadChoice);
-    button("والئو (VALEO)", () -> chooseEcu("والئو (VALEO)"));
-    button("عظام", () -> chooseEcu("عظام"));
-    button("SB13", () -> chooseEcu("SB13"));
+    content.addView(text("انتخاب دستی پروفایل CAN. شناسایی خودکار، نرخ و قالب ارتباط CAN را جست‌وجو می‌کند؛ نام دقیق ECU همیشه از OBD عمومی قابل دریافت نیست.",14,false));
+    button("عظام SB13 — نیسان زامیاد بنزینی", () -> selectManualEcu("SB13"));
+    button("سایر ECUهای سازگار با OBD-II CAN", () -> selectManualEcu("OBD-II CAN عمومی"));
     back(home);
 
     content = diagnosticMenu;
-    diagnosticSelectionLabel = text("خودرو: —   |   ECU: —",15,true);
+    diagnosticSelectionLabel = text("نیسان زامیاد بنزینی  |  عظام SB13",15,true);
     content.addView(diagnosticSelectionLabel);
-    button("اتصال به دستگاه (Wi-Fi)", () -> connect());
-    button("اتصال به ECU", () -> send("!1"));
-    button("شناسایی", () -> show(ecuSection));
-    button("خواندن عیب", () -> { show(dtcSection); send("!2"); });
-    button("پاک کردن عیب", () -> { show(dtcSection); confirmClear(); });
-    button("داشبورد زنده موتور", () -> show(dashboardSection));
-    button("۳۵ پارامتر ECU زیمنس پراید", () -> show(prideSiemensSection));
-    button("عیب‌یابی Bosch زامیاد 7.9.7.1", () -> show(boschServiceSection));
-    button("پارامترها", () -> show(parametersMenu));
-    button("همه پارامترهای زنده (پویا)", () -> { dynamicReturnTarget = home; show(dynamicParametersSection); });
-    button("عملگرها", () -> show(actuatorSection));
-    button("ریست کردن مقادیر سازگار یافته", () -> show(resetSection));
-    button("نمودار", () -> show(chartSection));
-    button("قطع اتصال", () -> disconnect());
-    button("تغییر شرکت / ECU", () -> show(home));
-    button("⚙ تنظیمات برنامه", () -> show(settingsSection));
-    button("به‌روزرسانی برنامه", () -> { refreshUpdateInfo(); show(updateSection); });
-    button("راهنما و اطلاعات نسخه", () -> show(helpSection));
+    button("شناسایی خودکار و اتصال ECU روی CAN", () -> startAutomaticCanScan());
+    button("انتخاب دستی ECU", () -> showManualEcuPicker());
+    button("خواندن خطاهای ECU", () -> { show(dtcSection); send("!2"); });
+    button("پاک‌کردن خطاهای ECU", () -> { show(dtcSection); confirmClear(); });
+    button("خواندن پارامترهای زنده", () -> { dynamicReturnTarget = home; show(dynamicParametersSection); prepareSb13Live(); });
+    button("قطع ارتباط CAN", () -> send("!0"));
     back(home);
 
     content = settingsSection;
@@ -423,9 +368,9 @@ public class MainActivity extends Activity {
 
     content = helpSection;
     content.addView(text("یاسر دیاگ | ابزار عیب‌یابی فارسی خودرو",18,true));
-    content.addView(text("نسخه برنامه: 2.5.7 • رابط آبی تعمیرگاهی SB13",16,true));
-    content.addView(text("ارتباط فعلی: Wi‑Fi به ESP‑01، TCP پورت 3333؛ پروفایل‌های عملیاتی: زیمنس پراید و بوش زامیاد 7.9.7.1.",14,false));
-    content.addView(text("سایر ECUها در فهرست انتخاب نمایش داده می‌شوند، اما تا تأیید پروتکل و آزمون واقعی، فرمان عیب‌یابی برای آن‌ها فعال نیست.",14,false));
+    content.addView(text("نسخه برنامه: 2.5.9 • دیاگ CAN عظام SB13",16,true));
+    content.addView(text("ارتباط فعلی: Wi‑Fi به E-MAX، TCP پورت 3333؛ ECU هدف: عظام SB13 نیسان زامیاد بنزینی.",14,false));
+    content.addView(text("شناسایی خودکار، پاسخ OBD-II و مشخصات شبکه CAN را پیدا می‌کند. برای تعیین مدل ECU از انتخاب دستی استفاده کنید.",14,false));
     content.addView(text("نکته ایمنی: پاک‌کردن خطا و تست عملگر را فقط در شرایط تعمیرگاهی مناسب انجام دهید. نمایش یک فرمان به معنی تأیید عملکرد فیزیکی عملگر نیست.",14,false));
     content.addView(text("آخرین پیام ارتباط و عیب‌یابی (جزئیات خارج از نوار ثابت بالا)", 14, true));
     lastDiagnosticStatus = text("هنوز پیامی ثبت نشده", 13, false);
@@ -704,19 +649,17 @@ public class MainActivity extends Activity {
     applyThemeToViews(root);
     applyFontScale(root);
     show(home);
-    final String restoreKey = b != null ?
-        b.getString("yasir.screen", "home") :
-        reopenScreenKey;
-    selectedBrand = b != null ? b.getString("yasir.brand", "") :
-        preferences.getString("yasir.lastBrand", "");
-    selectedEcu = b != null ? b.getString("yasir.ecu", "") :
-        preferences.getString("yasir.lastEcu", "");
+    final String restoreKey = "home";
+    selectedBrand = "نیسان زامیاد";
+    selectedEcu = "SB13";
+    preferences.edit().putString("yasir.lastBrand", selectedBrand)
+        .putString("yasir.lastEcu", selectedEcu).putString("yasir.lastScreen", "home").apply();
     if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) pendingProfileCommand = "!PROFILE:BOSCH";
     else if ("SB13".equals(selectedEcu)) pendingProfileCommand = "!PROFILE:SB13_CAN";
     else if ("زیمنس پراید".equals(selectedEcu) || "زیمنس SIM2K-34VR".equals(selectedEcu))
       pendingProfileCommand = "!PROFILE:SIEMENS";
-    final LinearLayout restoreScreen = screenFromKey(restoreKey);
-    if (restoreScreen != null && restoreScreen != home) show(restoreScreen);
+    final LinearLayout restoreScreen = home;
+    show(restoreScreen);
     final int savedY = b == null ? 0 : b.getInt("yasir.scroll", 0);
     if (savedY > 0 && scrollContainer != null)
       scrollContainer.post(() -> scrollContainer.scrollTo(0, savedY));
@@ -992,8 +935,8 @@ public class MainActivity extends Activity {
     String[] icons = {"⌂", "▣", "⌕", "▤", "⚙"};
     Runnable[] actions = new Runnable[] {
       () -> show(home),
-      () -> show(ecuSelectionSection),
-      () -> { if (selectedEcu.isEmpty()) selectedEcu = "زیمنس SIM2K-34VR"; diagnosticSelectionLabel.setText("خودرو: " + (selectedBrand.isEmpty() ? "خودرو انتخاب‌نشده" : selectedBrand) + "   |   ECU: " + selectedEcu); show(diagnosticMenu); },
+      () -> showManualEcuPicker(),
+      () -> show(home),
       () -> show(dtcSection),
       () -> show(settingsSection)
     };
@@ -1147,6 +1090,65 @@ public class MainActivity extends Activity {
     show(ecuSelectionSection);
   }
 
+  void showManualEcuPicker() {
+    final String[] options = {
+      "عظام SB13 — نیسان زامیاد بنزینی",
+      "ECU سازگار با OBD-II CAN — پروفایل عمومی"
+    };
+    new AlertDialog.Builder(this)
+      .setTitle("انتخاب دستی ECU")
+      .setItems(options, (dialog, which) -> {
+        selectManualEcu(which == 0 ? "SB13" : "OBD-II CAN عمومی");
+      })
+      .setNegativeButton("انصراف", null)
+      .show();
+  }
+
+  void selectManualEcu(String ecu) {
+    selectedBrand = "نیسان زامیاد";
+    selectedEcu = ecu;
+    pendingProfileCommand = "!PROFILE:SB13_CAN";
+    preferences.edit().putString("yasir.lastBrand", selectedBrand)
+        .putString("yasir.lastEcu", selectedEcu).putString("yasir.lastScreen", "home").apply();
+    if (tcpLive) {
+      String command = pendingProfileCommand;
+      pendingProfileCommand = "";
+      send(command);
+      ui.postDelayed(() -> {
+        if (tcpLive) send("!1");
+      }, 350);
+    } else {
+      scanAfterTcpConnect = true;
+      connect();
+    }
+    setStatus("انتخاب دستی ECU ثبت شد؛ در حال بررسی ارتباط CAN");
+    show(home);
+  }
+
+  void startAutomaticCanScan() {
+    selectedBrand = "نیسان زامیاد";
+    selectedEcu = "SB13";
+    pendingProfileCommand = "!PROFILE:SB13_CAN";
+    preferences.edit().putString("yasir.lastBrand", selectedBrand)
+        .putString("yasir.lastEcu", selectedEcu).putString("yasir.lastScreen", "home").apply();
+    scanAfterTcpConnect = true;
+    setStatus("در حال شناسایی خودکار ECU و جست‌وجوی پروتکل CAN...");
+    if (!tcpLive || socket == null || socket.isClosed()) {
+      connect();
+      return;
+    }
+    String command = pendingProfileCommand;
+    pendingProfileCommand = "";
+    send(command);
+    ui.postDelayed(() -> {
+      if (tcpLive) {
+        send("!1");
+        setStatus("پروفایل SB13 فعال شد؛ جست‌وجوی خودکار CAN شروع شد");
+      }
+      scanAfterTcpConnect = false;
+    }, 350);
+  }
+
   void requestProfileCommand(String command) {
     pendingProfileCommand = command;
     if (tcpLive && socket != null && !socket.isClosed()) {
@@ -1170,8 +1172,8 @@ public class MainActivity extends Activity {
     if ("SB13".equals(ecu)) {
       diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: عظام SB13 بنزینی");
       requestProfileCommand("!PROFILE:SB13_CAN");
-      show(sb13CanSection);
-      setStatus("پروفایل CAN عمومی انتخاب شد؛ ابتدا به Wi-Fi دستگاه وصل شوید");
+      show(home);
+      setStatus("پروفایل SB13 انتخاب شد؛ برای شناسایی CAN، اتصال خودکار را بزنید");
       return;
     }
     if ("زیمنس پراید".equals(ecu)) {
@@ -1563,7 +1565,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.5.7\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.5.9\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -1744,6 +1746,15 @@ public class MainActivity extends Activity {
             ui.postDelayed(() -> {
               if (running && connectionEpoch == epoch) send(profileCmd);
             }, 180);
+          }
+          if (scanAfterTcpConnect) {
+            ui.postDelayed(() -> {
+              if (running && connectionEpoch == epoch) {
+                send("!1");
+                setStatus("ارتباط دستگاه برقرار شد؛ جست‌وجوی خودکار CAN شروع شد");
+              }
+              scanAfterTcpConnect = false;
+            }, 520);
           }
 
           BufferedReader reader =
