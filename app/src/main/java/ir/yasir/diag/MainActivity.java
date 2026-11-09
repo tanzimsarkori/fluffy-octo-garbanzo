@@ -2100,9 +2100,9 @@ public class MainActivity extends Activity {
       row.setOrientation(LinearLayout.HORIZONTAL);
       row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
       row.setGravity(Gravity.CENTER_VERTICAL);
-      row.setPadding(dp(7), dp(6), dp(5), dp(6));
+      row.setPadding(dp(12), dp(8), dp(10), dp(8));
       row.setTag("dynamic-row");
-      row.setBackground(blueDiagnosticDrawable((dynamicParameterList.getChildCount() & 1) == 0));
+      row.setBackground(panelDrawable(cardBackground(), Color.rgb(53, 91, 105), 10));
       LinearLayout labelColumn = new LinearLayout(this);
       labelColumn.setOrientation(LinearLayout.VERTICAL);
       labelColumn.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
@@ -2123,13 +2123,11 @@ public class MainActivity extends Activity {
       val.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
       val.setPadding(dp(4), 0, dp(4), 0);
       row.addView(val, new LinearLayout.LayoutParams(0, -2, 1.0f));
-      TextView iconMark = text("◉", 16, true);
-      iconMark.setTextColor(Color.rgb(4, 42, 108));
-      iconMark.setGravity(Gravity.CENTER);
-      iconMark.setBackground(panelDrawable(Color.rgb(222, 239, 255), Color.WHITE, 2));
-      LinearLayout.LayoutParams accentParams = new LinearLayout.LayoutParams(dp(32), dp(32));
-      accentParams.setMargins(dp(3), 0, 0, 0);
-      row.addView(iconMark, accentParams);
+      View accent = new View(this);
+      accent.setBackground(panelDrawable(teal, teal, 2));
+      LinearLayout.LayoutParams accentParams = new LinearLayout.LayoutParams(dp(4), dp(34));
+      accentParams.setMargins(dp(5), 0, dp(7), 0);
+      row.addView(accent, accentParams);
       int rank = dynamicParameterRank(id);
       int insertion = 0;
       while (insertion < dynamicParameterList.getChildCount()) {
@@ -2159,7 +2157,8 @@ public class MainActivity extends Activity {
     String shown = value == null || value.equals("null") ? "" : value.trim();
     if (unit != null && !unit.trim().isEmpty()) shown += " " + unit.trim();
     if (shown.isEmpty() || shown.equals("—")) {
-      val.getParent() instanceof View ? ((View)val.getParent()).setVisibility(View.GONE) : val.setVisibility(View.GONE);
+      if (val.getParent() instanceof View) ((View)val.getParent()).setVisibility(View.GONE);
+      else val.setVisibility(View.GONE);
       return;
     }
     if (!shown.contentEquals(val.getText())) val.setText(shown);
