@@ -54,6 +54,7 @@ public class MainActivity extends Activity {
   boolean autoCanConnected = false;
   int autoDetectionStage = 0;
   int autoDetectionToken = 0;
+  boolean ecuActionsShownForCurrentConnection = false;
   boolean exiting = false;
   final HashMap<Integer, Bitmap> vehiclePhotoCache = new HashMap<>();
   final HashMap<Integer, Boolean> vehiclePhotoLoading = new HashMap<>();
@@ -361,26 +362,16 @@ public class MainActivity extends Activity {
     blueWorkshopRow(autoSearchSection, "بازگشت به برندها", "‹", () -> show(home));
 
     content = diagnosticMenu;
+    content.addView(sectionTitle("عیب‌یابی ECU", "عملیات برای ECU شناسایی‌شده", "ECU"));
     diagnosticSelectionLabel = text("خودرو: —   |   ECU: —",15,true);
     content.addView(diagnosticSelectionLabel);
-    button("اتصال به دستگاه (Wi-Fi)", () -> connect());
-    button("اتصال به ECU", () -> send("!1"));
-    button("شناسایی", () -> show(ecuSection));
-    button("خواندن عیب", () -> { show(dtcSection); send("!2"); });
-    button("پاک کردن عیب", () -> { show(dtcSection); confirmClear(); });
-    button("داشبورد زنده موتور", () -> show(dashboardSection));
-    button("۳۵ پارامتر ECU زیمنس پراید", () -> show(prideSiemensSection));
-    button("عیب‌یابی Bosch زامیاد 7.9.7.1", () -> show(boschServiceSection));
-    button("پارامترها", () -> show(parametersMenu));
-    button("همه پارامترهای زنده (پویا)", () -> { dynamicReturnTarget = home; show(dynamicParametersSection); });
-    button("عملگرها", () -> show(actuatorSection));
-    button("ریست کردن مقادیر سازگار یافته", () -> show(resetSection));
-    button("نمودار", () -> show(chartSection));
-    button("قطع اتصال", () -> disconnect());
-    button("تغییر شرکت / ECU", () -> show(home));
-    button("⚙ تنظیمات برنامه", () -> show(settingsSection));
-    button("به‌روزرسانی برنامه", () -> { refreshUpdateInfo(); show(updateSection); });
-    button("راهنما و اطلاعات نسخه", () -> show(helpSection));
+    blueWorkshopRow(diagnosticMenu, "خواندن عیب", "DTC", () -> openIdentifiedEcuFaults());
+    blueWorkshopRow(diagnosticMenu, "پاک کردن عیب", "CLR", () -> confirmIdentifiedEcuClear());
+    blueWorkshopRow(diagnosticMenu, "پارامترها", "LIVE", () -> openIdentifiedEcuParameters());
+    blueWorkshopRow(diagnosticMenu, "عملکردها", "ACT", () -> openIdentifiedEcuActuators());
+    blueWorkshopRow(diagnosticMenu, "ریست مقادیر سازگار یافته", "RESET", () -> show(resetSection));
+    blueWorkshopRow(diagnosticMenu, "نمودار", "GRAPH", () -> show(chartSection));
+    blueWorkshopRow(diagnosticMenu, "تغییر خودرو / ECU", "‹", () -> show(home));
     back(home);
 
     content = settingsSection;
@@ -1326,6 +1317,7 @@ public class MainActivity extends Activity {
   }
 
   void startAutomaticCanScan() {
+    ecuActionsShownForCurrentConnection = false;
     if (selectedBrand == null || selectedBrand.trim().isEmpty()) selectedBrand = "زامیاد";
     selectedEcu = "شناسایی خودکار ECU";
     preferences.edit().putString("yasir.lastBrand", selectedBrand)
@@ -1381,7 +1373,68 @@ public class MainActivity extends Activity {
     autoDetectionStage = 0;
     autoDetectionToken++;
     if (autoSearchStatus != null) autoSearchStatus.setText(result);
-    setStatus("جستجوی خودکار پایان یافت");
+    boolean identified = result != null &&
+        (result.contains("شناسایی شد") || result.contains("سازگار است") ||
+         result.contains("پاسخ داده با پروفایل") || result.contains("ECU روی CAN پاسخ داد") ||
+         result.contains("ارتباط OBD-II روی CAN برقرار شد") || result.contains("ECU روی CAN پاسخ می‌دهد"));
+    if (identified) showEcuActionsMenu();
+    setStatus(identified ? "ECU شناسایی شد؛ منوی عیب‌یابی آماده است" : "جستجوی خودکار پایان یافت");
+  }
+
+  void showEcuActionsMenu() {
+    if (ecuActionsShownForCurrentConnection) return;
+    ecuActionsShownForCurrentConnection = true;
+    if (diagnosticSelectionLabel != null)
+      diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " +
+          (selectedEcu == null || selectedEcu.trim().isEmpty() ? "ECU شناسایی‌شده" : selectedEcu));
+    show(diagnosticMenu);
+  }
+
+  boolean isBoschSelected() {
+    return selectedEcu != null && selectedEcu.startsWith("بوش زامیاد");
+  }
+
+  boolean isSiemensSelected() {
+    return selectedEcu != null && selectedEcu.startsWith("زیمنس");
+  }
+
+  boolean isCanSelected() {
+    return "SB13".equals(selectedEcu) || (selectedEcu != null && selectedEcu.contains("CAN"));
+  }
+
+  void openIdentifiedEcuFaults() {
+    show(dtcSection);
+    if (isBoschSelected()) sendBoschKey('2');
+    else send("!2");
+  }
+
+  void confirmIdentifiedEcuClear() {
+    if (isBoschSelected()) confirmBoschClear();
+    else confirmClear();
+  }
+
+  void openIdentifiedEcuParameters() {
+    if (isBoschSelected()) {
+      show(boschZamyadSection);
+      sendBoschKey('6');
+    } else if (isSiemensSelected()) {
+      show(prideSiemensSection);
+    } else if (isCanSelected()) {
+      dynamicReturnTarget = diagnosticMenu;
+      show(dynamicParametersSection);
+      prepareSb13Live();
+    } else {
+      show(parametersMenu);
+    }
+  }
+
+  void openIdentifiedEcuActuators() {
+    if (isBoschSelected()) show(boschServiceSection);
+    else if (isSiemensSelected()) show(actuatorSection);
+    else new AlertDialog.Builder(this)
+        .setTitle("عملکردها")
+        .setMessage("برای این ECU در فریم‌ور فعلی تست عملگر تأییدشده‌ای تعریف نشده است.")
+        .setPositiveButton("باشه", null).show();
   }
 
   void requestProfileCommand(String command) {
@@ -1396,6 +1449,7 @@ public class MainActivity extends Activity {
   }
 
   void startSelectedEcu(String profile, String liveCommand, LinearLayout target) {
+    ecuActionsShownForCurrentConnection = false;
     preferences.edit().putString("yasir.lastBrand", selectedBrand)
         .putString("yasir.lastEcu", selectedEcu).putString("yasir.lastScreen", "ecuSelection").apply();
     diagnosticSelectionLabel.setText("خودرو: " + selectedBrand + "   |   ECU: " + selectedEcu);
@@ -2533,8 +2587,10 @@ public class MainActivity extends Activity {
       JSONObject j = new JSONObject(line);
       if ("p".equals(j.optString("t"))) {
         updateCompactPride(j);
-        if (autoDetectionActive && autoDetectionStage == 2)
+        if (autoDetectionActive && autoDetectionStage == 2) {
+          selectedEcu = "زیمنس پراید";
           finishAutomaticDetection("دادهٔ زنده با پروفایل زیمنس پراید سازگار است؛ شناسهٔ کارخانه‌ای جداگانه اعلام نشد.");
+        }
         return;
       }
       String type = j.optString("type");
@@ -2549,28 +2605,37 @@ public class MainActivity extends Activity {
         appendEcuInfoLine(info, "VIN", j.optString("vin", ""));
         appendEcuInfoLine(info, "شبکه", j.optString("protocol", ""));
         updateAutoSearchResult(info.toString());
-        if (autoDetectionActive && autoDetectionStage == 3) finishAutomaticDetection(info.toString());
+        if (autoDetectionActive && autoDetectionStage == 3) {
+          selectedEcu = "OBD-II CAN";
+          finishAutomaticDetection(info.toString());
+        }
         setStatus("اطلاعات شناسایی استاندارد ECU دریافت شد");
       } else if(type.equals("parameters")) {
         updateDynamicParameters(j);
         if (autoDetectionActive && autoDetectionStage == 1 &&
-            "bosch_zamyad_7971".equals(j.optString("profile")))
+            "bosch_zamyad_7971".equals(j.optString("profile"))) {
+          selectedEcu = "بوش زامیاد 7.9.7.1";
           finishAutomaticDetection("پاسخ داده با پروفایل بوش زامیاد 7.9.7.1 سازگار است؛ شناسهٔ کارخانه‌ای جداگانه اعلام نشد.");
+        }
 
         if ("bosch_zamyad_7971".equals(j.optString("profile"))) {
           if (boschZamyadUpdated != null) boschZamyadUpdated.setText("بوش زامیاد • دریافت تازه: " + new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
           setStatus("۱۹ پارامتر زنده بوش زامیاد دریافت شد");
+          if (!autoDetectionActive && isBoschSelected()) showEcuActionsMenu();
         } else if ("sb13_can_obd".equals(j.optString("profile"))) {
           if (sb13CanUpdated != null) sb13CanUpdated.setText("آخرین دریافت پارامترهای CAN: " + new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
           setStatus("پارامتر زندهٔ SB13 از CAN دریافت شد");
+          if (!autoDetectionActive) showEcuActionsMenu();
         } else {
           prideFrames++;
           setStatus("بسته پارامترهای زیمنس پراید دریافت شد: " + prideFrames);
         }
       } else if(type.equals("telemetry")) {
         telemetryFrames++;
-        if (autoDetectionActive && autoDetectionStage == 2)
+        if (autoDetectionActive && autoDetectionStage == 2) {
+          selectedEcu = "زیمنس پراید";
           finishAutomaticDetection("دادهٔ زنده با پروفایل زیمنس پراید سازگار است؛ شناسهٔ کارخانه‌ای جداگانه اعلام نشد.");
+        }
         updateDynamicParameters(j);
         rpm.setText(j.optString("rpm","—") + " دور/دقیقه");
         coolant.setText(j.optString("coolant","—") + " °C");
@@ -2639,11 +2704,13 @@ public class MainActivity extends Activity {
           updateAutoSearchResult("پاسخ ECU روی CAN دریافت شد • " + net +
               "\nدر حال خواندن VIN، نام ECU و شناسه‌های استاندارد...");
           if (autoDetectionActive && autoDetectionStage == 3) {
+            selectedEcu = "OBD-II CAN";
             send("!7");
             ui.postDelayed(() -> { if (tcpLive) send("!6"); }, 1600);
             finishAutomaticDetection("ECU روی CAN شناسایی شد • " + net + " • پارامترهای زنده در حال دریافت‌اند");
           } else if ("SB13".equals(selectedEcu)) {
             send("!6");
+            showEcuActionsMenu();
           }
         } else if (message.startsWith("CAN_PROBING_")) {
           setStatus("در حال جست‌وجوی پاسخ ECU روی CAN: " + message.replace("CAN_PROBING_", ""));
@@ -2690,16 +2757,22 @@ public class MainActivity extends Activity {
         } else if (message.equals("BOSCH_ECU_CONNECTED")) {
           setStatus("پاسخ K-Line بوش دریافت شد؛ در حال خواندن پارامترها");
           if (autoDetectionActive && autoDetectionStage == 1) {
+            selectedEcu = "بوش زامیاد 7.9.7.1";
             sendBoschKey('6');
             finishAutomaticDetection("ECU بوش روی K-Line شناسایی شد؛ پارامترهای زنده در حال دریافت‌اند");
-          } else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) sendBoschKey('6');
+          } else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) {
+            sendBoschKey('6');
+            showEcuActionsMenu();
+          }
         } else if (message.equals("BOSCH_ECU_CONNECTION_FAILED")) {
           setStatus("اتصال ECU بوش برقرار نشد؛ سوئیچ، سیم K-Line و پروفایل را بررسی کنید");
           if (autoDetectionActive && autoDetectionStage == 1) beginAutomaticDetectionStage(2);
         } else if (message.equals("ECU_CONNECTED")) {
           setStatus("اتصال K-Line زیمنس برقرار شد؛ دریافت پارامترها ادامه دارد");
-          if (autoDetectionActive && autoDetectionStage == 2)
+          if (autoDetectionActive && autoDetectionStage == 2) {
+            selectedEcu = "زیمنس پراید";
             finishAutomaticDetection("ECU زیمنس روی K-Line شناسایی شد؛ پارامترهای زنده در حال دریافت‌اند");
+          } else if (isSiemensSelected()) showEcuActionsMenu();
         } else if (message.equals("ECU_CONNECTION_FAILED")) {
           setStatus("اتصال K-Line زیمنس برقرار نشد؛ سیم‌بندی و برق ECU را بررسی کنید");
           if (autoDetectionActive && autoDetectionStage == 2) beginAutomaticDetectionStage(3);
