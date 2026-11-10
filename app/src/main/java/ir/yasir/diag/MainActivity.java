@@ -1232,7 +1232,7 @@ public class MainActivity extends Activity {
       String[] sharedProfiles = {
         "زیمنس پراید • پروفایل فعال",
         "بوش زامیاد 7.9.7.1 • پروفایل فعال",
-        "عظام SB13 بنزینی یورو ۵ • پروفایل CAN فعال"
+        "عظام SB13 بنزینی یورو ۵ • پروفایل فعال CAN"
       };
       if ("زامیاد".equals(brand))
         return new String[]{sharedProfiles[2], sharedProfiles[1], sharedProfiles[0], "بوش M7.9.7.1", "زیمنس زامیاد بنزینی"};
