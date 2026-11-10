@@ -1445,12 +1445,12 @@ public class MainActivity extends Activity {
     if (requested.equals("SB13") || requested.startsWith("عظام SB13 بنزینی")) {
       selectedEcu = "SB13";
       seedSb13ParameterRows();
-      startSelectedEcu("!PROFILE:SB13_CAN", "", dynamicParametersSection);
+      startSelectedEcu("!PROFILE:SB13_CAN", "!6", dynamicParametersSection);
       return;
     }
     if (requested.startsWith("بوش زامیاد 7.9.7.1")) {
       selectedEcu = "بوش زامیاد 7.9.7.1";
-      startSelectedEcu("!PROFILE:BOSCH", "", boschZamyadSection);
+      startSelectedEcu("!PROFILE:BOSCH", "!6", boschZamyadSection);
       return;
     }
     if (requested.startsWith("زیمنس پراید")) {
