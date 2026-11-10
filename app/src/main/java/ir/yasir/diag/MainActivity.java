@@ -177,20 +177,25 @@ public class MainActivity extends Activity {
     final String reopenScreenKey = "home";
     installCrashDiagnostics();
     uiScale = preferences.getFloat("ui_scale", 1.0f);
-    themeMode = preferences.getInt("theme_mode", 3);
+    if (preferences.getInt("industrial_ui_v1", 0) == 0) {
+      themeMode = 1;
+      preferences.edit().putInt("theme_mode", 1).putInt("industrial_ui_v1", 1).apply();
+    } else {
+      themeMode = preferences.getInt("theme_mode", 1);
+    }
     configurePalette();
     getWindow().setStatusBarColor(navy);
     LinearLayout appShell = new LinearLayout(this);
     appShell.setOrientation(LinearLayout.VERTICAL);
-    appShell.setBackgroundColor(Color.rgb(3, 13, 15));
+    appShell.setBackgroundColor(Color.rgb(8, 20, 35));
     ScrollView scroll = new ScrollView(this);
     scrollContainer = scroll;
     scroll.setFillViewport(true);
     scroll.setClipToPadding(false);
     root = new LinearLayout(this);
-    root.setPadding(dp(16),dp(12),dp(16),dp(36));
+    root.setPadding(dp(10),dp(10),dp(10),dp(30));
     root.setOrientation(LinearLayout.VERTICAL);
-    root.setBackgroundColor(Color.rgb(3, 13, 15));
+    root.setBackgroundColor(Color.rgb(8, 20, 35));
     root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
     scroll.addView(root);
     appShell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -202,14 +207,14 @@ public class MainActivity extends Activity {
     header.setGravity(Gravity.CENTER_VERTICAL);
     header.setPadding(dp(8), dp(7), dp(8), dp(7));
     header.setTag("hero-header");
-    header.setBackground(panelDrawable(Color.rgb(3, 17, 15), Color.rgb(20, 72, 48), 18));
+    header.setBackground(panelDrawable(Color.rgb(12, 28, 46), Color.rgb(78, 112, 142), 0));
     appBrandHeader = header;
     LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(-1, -2);
     headerParams.setMargins(0, 0, 0, dp(10));
     ImageView brandLogo = new ImageView(this);
     brandLogo.setImageResource(R.drawable.yasir_diag_logo);
     brandLogo.setScaleType(ImageView.ScaleType.CENTER_CROP);
-    brandLogo.setBackground(panelDrawable(Color.rgb(0, 0, 0), Color.rgb(42, 112, 65), 14));
+    brandLogo.setBackground(panelDrawable(Color.rgb(16, 34, 53), Color.rgb(100, 128, 151), 0));
     brandLogo.setClipToOutline(true);
     header.addView(brandLogo, new LinearLayout.LayoutParams(dp(112), dp(112)));
     LinearLayout brandText = new LinearLayout(this);
@@ -761,7 +766,7 @@ public class MainActivity extends Activity {
   GradientDrawable panelDrawable(int fill, int stroke, int radiusDp) {
     GradientDrawable d = new GradientDrawable();
     d.setColor(fill);
-    d.setCornerRadius(radiusDp * getResources().getDisplayMetrics().density);
+    d.setCornerRadius(Math.min(radiusDp, 2) * getResources().getDisplayMetrics().density);
     d.setStroke(Math.max(1, (int)(getResources().getDisplayMetrics().density)), stroke);
     return d;
   }
@@ -770,10 +775,10 @@ public class MainActivity extends Activity {
     GradientDrawable d = new GradientDrawable(
       GradientDrawable.Orientation.LEFT_RIGHT,
       alternate
-        ? new int[]{Color.rgb(0, 83, 196), Color.rgb(0, 139, 232)}
-        : new int[]{Color.rgb(3, 48, 145), Color.rgb(0, 111, 215)});
-    d.setCornerRadius(dp(3));
-    d.setStroke(Math.max(1, dp(1)), Color.rgb(205, 232, 255));
+        ? new int[]{Color.rgb(28, 65, 101), Color.rgb(34, 77, 117)}
+        : new int[]{Color.rgb(18, 48, 78), Color.rgb(24, 61, 96)});
+    d.setCornerRadius(0);
+    d.setStroke(Math.max(1, dp(1)), Color.rgb(88, 119, 147));
     return d;
   }
 
@@ -788,7 +793,7 @@ public class MainActivity extends Activity {
     header.setGravity(Gravity.CENTER);
     header.setPadding(dp(8), dp(5), dp(8), dp(6));
     GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-      new int[]{Color.rgb(4, 22, 78), Color.rgb(5, 50, 137)});
+      new int[]{Color.rgb(15, 42, 70), Color.rgb(25, 67, 105)});
     bg.setCornerRadius(dp(2));
     bg.setStroke(dp(1), Color.rgb(210, 235, 255));
     header.setBackground(bg);
@@ -953,7 +958,7 @@ public class MainActivity extends Activity {
     nav.setOrientation(LinearLayout.HORIZONTAL);
     nav.setGravity(Gravity.CENTER);
     nav.setPadding(5, 7, 5, 7);
-    nav.setBackground(panelDrawable(Color.rgb(5, 17, 19), Color.rgb(36, 74, 67), 18));
+    nav.setBackground(panelDrawable(Color.rgb(10, 25, 41), Color.rgb(74, 105, 132), 0));
     String[] labels = {"خانه", "خودروها", "دیاگ", "گزارش‌ها", "تنظیمات"};
     String[] icons = {"⌂", "▣", "⌕", "▤", "⚙"};
     Runnable[] actions = new Runnable[] {
@@ -971,12 +976,12 @@ public class MainActivity extends Activity {
       item.setPadding(2, 4, 2, 4);
       TextView glyph = text(icons[i], 22, true);
       glyph.setGravity(Gravity.CENTER);
-      glyph.setTextColor(i == 0 ? Color.rgb(99, 245, 106) : Color.rgb(153, 174, 170));
+      glyph.setTextColor(i == 0 ? Color.rgb(120, 190, 230) : Color.rgb(167, 187, 205));
       glyph.setPadding(2, 0, 2, 0);
       item.addView(glyph);
       TextView label = text(labels[i], 10, true);
       label.setGravity(Gravity.CENTER);
-      label.setTextColor(i == 0 ? Color.rgb(120, 239, 135) : Color.rgb(164, 181, 176));
+      label.setTextColor(i == 0 ? Color.rgb(153, 211, 243) : Color.rgb(177, 194, 209));
       label.setPadding(0, 0, 0, 0);
       item.addView(label);
       item.setOnClickListener(v -> actions[index].run());
@@ -1261,7 +1266,7 @@ public class MainActivity extends Activity {
     selectedBrandLabel = text(selectedBrand + "  |  " + system, 19, true);
     selectedBrandLabel.setTextColor(Color.rgb(235, 246, 255));
     ecuSelectionSection.addView(selectedBrandLabel);
-    TextView note = text("کاتالوگ ECUهای رایج • سازنده ECU را از روی برند خودرو حدس نمی‌زنیم؛ پروفایل‌های فعال با نشان سبز مشخص‌اند.", 12, false);
+    TextView note = text("خانواده‌های ECU برای انتخاب دستی • اتصال فقط پس از تطبیق مدل و پروتکل ECU انجام می‌شود.", 12, false);
     note.setTextColor(Color.rgb(163, 196, 207));
     ecuSelectionSection.addView(note);
     for (String model : ecuCatalogFor(selectedBrand, system)) {
@@ -1436,24 +1441,29 @@ public class MainActivity extends Activity {
   }
 
   void chooseEcu(String ecu) {
-    selectedEcu = ecu;
-    if ("بوش زامیاد 7.9.7.1".equals(ecu)) {
-      startSelectedEcu("!PROFILE:BOSCH", "", boschZamyadSection);
-      return;
-    }
-    if ("SB13".equals(ecu)) {
+    String requested = ecu == null ? "" : ecu.trim();
+    if (requested.equals("SB13") || requested.startsWith("عظام SB13 بنزینی")) {
+      selectedEcu = "SB13";
       seedSb13ParameterRows();
       startSelectedEcu("!PROFILE:SB13_CAN", "", dynamicParametersSection);
       return;
     }
-    if ("زیمنس پراید".equals(ecu)) {
+    if (requested.startsWith("بوش زامیاد 7.9.7.1")) {
+      selectedEcu = "بوش زامیاد 7.9.7.1";
+      startSelectedEcu("!PROFILE:BOSCH", "", boschZamyadSection);
+      return;
+    }
+    if (requested.startsWith("زیمنس پراید")) {
+      selectedEcu = "زیمنس پراید";
       startSelectedEcu("!PROFILE:SIEMENS", "", prideSiemensSection);
       return;
     }
-    if ("زیمنس SIM2K-34VR".equals(ecu)) {
+    if (requested.startsWith("زیمنس SIM2K-34VR")) {
+      selectedEcu = "زیمنس SIM2K-34VR";
       startSelectedEcu("!PROFILE:SIEMENS", "", diagnosticMenu);
       return;
     }
+    selectedEcu = ecu;
     new AlertDialog.Builder(this)
       .setTitle(ecu)
       .setMessage("این ECU در کاتالوگ وجود دارد، اما هنوز پروفایل ارتباطی تأییدشده ندارد. برای اتصال باید پروتکل همین مدل ECU به برنامه افزوده شود.")
@@ -1721,14 +1731,20 @@ public class MainActivity extends Activity {
     Button b = new Button(this);
     b.setText(title);
     b.setAllCaps(false);
-    content.addView(b);
+    b.setTextColor(Color.WHITE);
+    b.setTextSize(15);
+    b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+    b.setBackground(panelDrawable(Color.rgb(31, 83, 126), Color.rgb(91, 132, 165), 0));
+    LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, dp(48));
+    p.setMargins(0, dp(4), 0, dp(4));
+    content.addView(b, p);
     b.setOnClickListener(v -> r.run());
   }
 
   void configurePalette() {
     if (themeMode == 1) {
       navy = Color.rgb(8, 20, 35);
-      teal = Color.rgb(65, 211, 196);
+      teal = Color.rgb(54, 132, 190);
     } else if (themeMode == 2) {
       navy = Color.rgb(21, 69, 58);
       teal = Color.rgb(0, 126, 96);
