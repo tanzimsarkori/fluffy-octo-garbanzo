@@ -229,7 +229,7 @@ public class MainActivity extends Activity {
     for (int ai = 0; ai < topIcons.length; ai++) {
       final int actionIndex = ai;
       TextView action = text(topIcons[ai], 20, true);
-      action.setTextColor(Color.rgb(143, 235, 142));
+      action.setTextColor(Color.rgb(180, 211, 235));
       action.setGravity(Gravity.CENTER);
       action.setPadding(dp(7), dp(2), dp(7), dp(2));
       action.setOnClickListener(v -> topActions[actionIndex].run());
@@ -237,10 +237,10 @@ public class MainActivity extends Activity {
     }
     brandText.addView(headerActions, new LinearLayout.LayoutParams(-1, -2));
     TextView appTitle = text("یاسر دیاگ", 27, true);
-    appTitle.setTextColor(Color.rgb(235, 255, 239));
+    appTitle.setTextColor(Color.rgb(241, 247, 252));
     brandText.addView(appTitle);
     TextView appTagline = text("تخصص ما، آرامش خودروی شما", 12, false);
-    appTagline.setTextColor(Color.rgb(135, 235, 166));
+    appTagline.setTextColor(Color.rgb(167, 190, 211));
     brandText.addView(appTagline);
     header.addView(brandText, new LinearLayout.LayoutParams(0, -2, 1));
     root.addView(header, headerParams);
@@ -252,16 +252,16 @@ public class MainActivity extends Activity {
     connectionPanel.setPadding(dp(5), dp(5), dp(5), dp(5));
     connectionPanel.setTag("connection-panel");
     connectionPanel.setMinimumHeight(dp(68));
-    connectionPanel.setBackground(panelDrawable(Color.rgb(4, 20, 18), Color.rgb(28, 75, 65), 14));
+    connectionPanel.setBackground(panelDrawable(Color.rgb(12, 28, 46), Color.rgb(78, 112, 142), 0));
     TextView connectAction = text("▣ اتصال به دستگاه", 12, true);
-    connectAction.setTextColor(Color.rgb(218, 255, 216));
+    connectAction.setTextColor(Color.WHITE);
     connectAction.setGravity(Gravity.CENTER);
     connectAction.setPadding(dp(5), dp(8), dp(5), dp(8));
-    connectAction.setBackground(panelDrawable(Color.rgb(10, 58, 24), Color.rgb(61, 180, 68), 10));
+    connectAction.setBackground(panelDrawable(Color.rgb(31, 83, 126), Color.rgb(91, 132, 165), 0));
     connectAction.setOnClickListener(v -> connect());
     connectionPanel.addView(connectAction, new LinearLayout.LayoutParams(0, -2, 1.05f));
     TextView endpoint = text("E-MAX\n192.168.4.1:3333", 10, true);
-    endpoint.setTextColor(Color.rgb(194, 220, 209));
+    endpoint.setTextColor(Color.rgb(208, 222, 235));
     endpoint.setGravity(Gravity.CENTER);
     connectionPanel.addView(endpoint, new LinearLayout.LayoutParams(0, -2, 1.0f));
     status = text("● TCP\nقطع", 10, true);
@@ -838,11 +838,11 @@ public class MainActivity extends Activity {
     LinearLayout wrap = new LinearLayout(this);
     wrap.setOrientation(LinearLayout.VERTICAL);
     wrap.setPadding(2, 14, 2, 7);
-    TextView heading = text(icon + "  " + title, 19, true);
-    heading.setTextColor(Color.rgb(230, 255, 237));
+    TextView heading = text(title, 19, true);
+    heading.setTextColor(Color.rgb(235, 244, 252));
     wrap.addView(heading);
     TextView sub = text(subtitle, 11, false);
-    sub.setTextColor(Color.rgb(127, 180, 153));
+    sub.setTextColor(Color.rgb(162, 187, 210));
     wrap.addView(sub);
     return wrap;
   }
