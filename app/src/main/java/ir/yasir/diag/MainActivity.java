@@ -328,14 +328,15 @@ public class MainActivity extends Activity {
     blueWorkshopRow(content, "جستجوی خودکار ECU روی CAN", "⌕", () -> send("!1"));
     blueWorkshopRow(content, "SB13 بنزینی یورو ۵", "⚡", () -> send("!1"));
     blueWorkshopRow(content, "خواندن پارامترهای زنده", "▤", () -> {
-      dynamicReturnTarget = sb13CanSection;
+      dynamicReturnTarget = diagnosticMenu;
       show(dynamicParametersSection);
       prepareSb13Live();
     });
     blueWorkshopRow(content, "خواندن خطاهای ECU", "⚠", () -> { show(dtcSection); send("!2"); });
     blueWorkshopRow(content, "پاک‌کردن خطاهای ECU", "×", () -> confirmClear());
     blueWorkshopRow(content, "قطع ارتباط CAN", "⏻", () -> send("!0"));
-    blueWorkshopRow(content, "بازگشت", "‹", () -> show(ecuSelectionSection));
+    blueWorkshopRow(content, "بازگشت", "‹", () ->
+        show(ecuActionsShownForCurrentConnection ? diagnosticMenu : ecuSelectionSection));
 
     content = ecuSelectionSection;
     selectedBrandLabel = text("برند و سیستم انتخابی",18,true);
@@ -1617,8 +1618,21 @@ public class MainActivity extends Activity {
     super.onSaveInstanceState(state);
   }
 
+  boolean isIdentifiedEcuSubPage() {
+    if (!ecuActionsShownForCurrentConnection) return false;
+    return currentScreen == dtcSection || currentScreen == dashboardSection ||
+        currentScreen == parametersMenu || currentScreen == speedSection ||
+        currentScreen == emissionsSection || currentScreen == ignitionSection ||
+        currentScreen == airSection || currentScreen == fuelSection ||
+        currentScreen == actuatorSection || currentScreen == resetSection ||
+        currentScreen == chartSection || currentScreen == dynamicParametersSection ||
+        currentScreen == prideSiemensSection || currentScreen == boschZamyadSection ||
+        currentScreen == boschServiceSection || currentScreen == sb13CanSection ||
+        currentScreen == ecuSection;
+  }
+
   void back(LinearLayout target) {
-    button("بازگشت", () -> show(target));
+    button("بازگشت", () -> show(isIdentifiedEcuSubPage() ? diagnosticMenu : target));
   }
 
   void confirmBoschClear() {
@@ -1676,7 +1690,8 @@ public class MainActivity extends Activity {
   }
 
   @Override public void onBackPressed() {
-    if(currentScreen == home) super.onBackPressed();
+    if (isIdentifiedEcuSubPage()) show(diagnosticMenu);
+    else if(currentScreen == home) super.onBackPressed();
     else if(currentScreen == ecuSelectionSection) show(systemSelectionSection);
     else if(currentScreen == autoSearchSection) show(systemSelectionSection);
     else if(currentScreen == systemSelectionSection) show(home);
