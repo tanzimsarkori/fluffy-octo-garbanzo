@@ -510,6 +510,7 @@ public class MainActivity extends Activity {
     back(home);
     content = dynamicParametersSection;
     content.addView(text("عظام SB13 • پارامترهای زنده CAN", 18, true));
+    blueWorkshopRow(content, "خطاها و عملیات CAN", "DTC", () -> show(sb13CanSection));
     dynamicParameterList = new LinearLayout(this);
     dynamicParameterList.setOrientation(LinearLayout.VERTICAL);
     dynamicParameterList.setPadding(0, dp(6), 0, 0);
@@ -520,6 +521,7 @@ public class MainActivity extends Activity {
     content = prideSiemensSection;
     prideSiemensUpdated = text("آماده دریافت داده از ECU • ۰/۳۵", 12, false);
     content.addView(prideSiemensUpdated);
+    button("عیب‌یابی و عملکردهای زیمنس", () -> show(diagnosticMenu));
 
     prideGroupSections[0] = new LinearLayout(this);
     prideGroupSections[0].setOrientation(LinearLayout.VERTICAL);
@@ -622,6 +624,7 @@ public class MainActivity extends Activity {
     content.addView(text("پروفایل مستقل زامیاد • Bosch 7.9.7.1", 18, true));
     boschZamyadUpdated = text("آماده دریافت داده از ECU بوش", 12, false);
     content.addView(boschZamyadUpdated);
+    button("خطاها و تست عملگرهای بوش", () -> show(boschServiceSection));
     String[][] boschRows = {
       {"bosch_zamyad_fault_count","شمارنده خطا (خام)"},
       {"bosch_zamyad_coolant","دمای آب"},
@@ -1426,12 +1429,12 @@ public class MainActivity extends Activity {
   void chooseEcu(String ecu) {
     selectedEcu = ecu;
     if ("بوش زامیاد 7.9.7.1".equals(ecu)) {
-      startSelectedEcu("!PROFILE:BOSCH", "!6", boschZamyadSection);
+      startSelectedEcu("!PROFILE:BOSCH", "", boschZamyadSection);
       return;
     }
     if ("SB13".equals(ecu)) {
       seedSb13ParameterRows();
-      startSelectedEcu("!PROFILE:SB13_CAN", "!6", dynamicParametersSection);
+      startSelectedEcu("!PROFILE:SB13_CAN", "", dynamicParametersSection);
       return;
     }
     if ("زیمنس پراید".equals(ecu)) {
@@ -2610,7 +2613,12 @@ public class MainActivity extends Activity {
           setStatus("اتصال CAN برقرار شد • " + net);
           updateAutoSearchResult("پاسخ ECU روی CAN دریافت شد • " + net +
               "\nدر حال خواندن VIN، نام ECU و شناسه‌های استاندارد...");
-          if (autoDetectionActive && autoDetectionStage == 3) send("!7");
+          if (autoDetectionActive && autoDetectionStage == 3) {
+            send("!7");
+            ui.postDelayed(() -> { if (tcpLive) send("!6"); }, 1600);
+          } else if ("SB13".equals(selectedEcu)) {
+            send("!6");
+          }
         } else if (message.startsWith("CAN_PROBING_")) {
           setStatus("در حال جست‌وجوی پاسخ ECU روی CAN: " + message.replace("CAN_PROBING_", ""));
           updateAutoSearchResult("در حال جستجوی ECU پاسخ‌گو روی CAN...\n" + message.replace("CAN_PROBING_", ""));
@@ -2654,13 +2662,18 @@ public class MainActivity extends Activity {
         } else if (message.equals("ACTUATOR_ALL_OFF_SENT")) {
           setStatus("فرمان توقف همه تست‌ها ارسال شد؛ تأیید ECU در انتظار است");
         } else if (message.equals("BOSCH_ECU_CONNECTED")) {
-          setStatus("پاسخ K-Line دریافت شد؛ در حال تأیید پروفایل بوش زامیاد");
-          if (autoDetectionActive && autoDetectionStage == 1) send("!6");
+          setStatus("پاسخ K-Line دریافت شد؛ در حال خواندن پارامترهای بوش");
+          if (autoDetectionActive && autoDetectionStage == 1) sendBoschKey('6');
+          else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) sendBoschKey('6');
         } else if (message.equals("BOSCH_ECU_CONNECTION_FAILED")) {
-          setStatus("پروفایل بوش پاسخ نداد؛ بررسی زیمنس شروع می‌شود");
+          setStatus("اتصال ECU بوش برقرار نشد؛ سوئیچ، سیم K-Line و پروفایل را بررسی کنید");
           if (autoDetectionActive && autoDetectionStage == 1) beginAutomaticDetectionStage(2);
+        } else if (message.equals("ECU_CONNECTED")) {
+          setStatus("اتصال K-Line برقرار شد؛ منتظر پارامترهای زیمنس هستم");
+        } else if (message.equals("ECU_CONNECTION_FAILED")) {
+          setStatus("اتصال K-Line زیمنس برقرار نشد؛ سیم‌بندی و برق ECU را بررسی کنید");
         } else if (message.equals("BOSCH_PARAMETER_READ_FAILED")) {
-          setStatus("خواندن پارامترهای بوش ناموفق بود؛ ارتباط ECU را بررسی کنید");
+          setStatus("ECU بوش وصل شد، اما دریافت پارامتر ناموفق بود؛ وضعیت اتصال و پروفایل را بررسی کنید");
         } else if (message.equals("BOSCH_DTC_CLEAR_NOT_CONFIRMED")) {
           setStatus("پاک‌کردن خطاهای بوش توسط ECU تأیید نشد");
         } else if (message.equals("BOSCH_DTC_CLEAR_ACCEPTED_RECHECKING")) {
