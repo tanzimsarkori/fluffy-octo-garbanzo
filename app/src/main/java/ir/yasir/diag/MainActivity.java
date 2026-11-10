@@ -1228,10 +1228,19 @@ public class MainActivity extends Activity {
   }
 
   String[] ecuCatalogFor(String brand, String system) {
-    if ("زامیاد".equals(brand) && system.startsWith("بنزینی"))
-      return new String[]{"عظام SB13 بنزینی یورو ۵", "عظام SB13 دوگانه‌سوز یورو ۵", "بوش زامیاد 7.9.7.1", "زیمنس زامیاد بنزینی"};
-    if ("سایپا".equals(brand) && system.startsWith("بنزینی"))
-      return new String[]{"زیمنس پراید • پروفایل فعال", "ساژم پراید SL96", "بوش M7.9.7.1", "زیمنس دوگانه‌سوز"};
+    if (system.startsWith("بنزینی")) {
+      String[] sharedProfiles = {
+        "زیمنس پراید • پروفایل فعال",
+        "بوش زامیاد 7.9.7.1 • پروفایل فعال",
+        "عظام SB13 بنزینی یورو ۵ • پروفایل CAN فعال"
+      };
+      if ("زامیاد".equals(brand))
+        return new String[]{sharedProfiles[2], sharedProfiles[1], sharedProfiles[0], "بوش M7.9.7.1", "زیمنس زامیاد بنزینی"};
+      if ("سایپا".equals(brand))
+        return new String[]{sharedProfiles[0], sharedProfiles[1], sharedProfiles[2], "ساژم پراید SL96", "زیمنس دوگانه‌سوز"};
+      return new String[]{sharedProfiles[0], sharedProfiles[1], sharedProfiles[2],
+        "Bosch ME7.4.4 / ME7.4.5", "Siemens SIM2K-34VR", "Sagem S2000 / SL96"};
+    }
     if (system.contains("ABS")) return new String[]{"Bosch ABS", "Continental / Teves ABS", "Mando ABS", "ATE ABS"};
     if (system.contains("ایموبیلایزر") || system.contains("ضدسرقت")) return new String[]{"یونیت ایموبیلایزر", "IMMO / کلید و آنتن", "BCM دارای ایموبیلایزر"};
     if (system.contains("کیسه هوا")) return new String[]{"یونیت ایربگ SRS", "Bosch / Continental SRS", "Autoliv SRS"};
@@ -1258,7 +1267,7 @@ public class MainActivity extends Activity {
     for (String model : ecuCatalogFor(selectedBrand, system)) {
       boolean active = model.contains("پروفایل فعال") || ("زامیاد".equals(selectedBrand) && model.startsWith("عظام SB13 بنزینی")) || ("زامیاد".equals(selectedBrand) && model.startsWith("بوش زامیاد 7.9.7.1"));
       final String selectedModel = model;
-      addCatalogRow(ecuSelectionSection, model, active ? "پروفایل فعال در این نسخه" : "کاتالوگ • پروفایل اختصاصی نیازمند تأیید", active ? "●" : "○", () -> {
+      addCatalogRow(ecuSelectionSection, model, active ? "پروفایل ارتباطی موجود • تطبیق با مدل ECU" : "کاتالوگ • پروفایل اختصاصی نیازمند تأیید", active ? "●" : "○", () -> {
         if (selectedModel.startsWith("عظام SB13 بنزینی")) chooseEcu("SB13");
         else if (selectedModel.startsWith("عظام SB13 دوگانه")) chooseEcu("SB13 دوگانه‌سوز یورو ۵");
         else if (selectedModel.startsWith("بوش زامیاد 7.9.7.1")) chooseEcu("بوش زامیاد 7.9.7.1");
