@@ -2641,6 +2641,7 @@ public class MainActivity extends Activity {
           if (autoDetectionActive && autoDetectionStage == 3) {
             send("!7");
             ui.postDelayed(() -> { if (tcpLive) send("!6"); }, 1600);
+            finishAutomaticDetection("ECU روی CAN شناسایی شد • " + net + " • پارامترهای زنده در حال دریافت‌اند");
           } else if ("SB13".equals(selectedEcu)) {
             send("!6");
           }
@@ -2687,16 +2688,21 @@ public class MainActivity extends Activity {
         } else if (message.equals("ACTUATOR_ALL_OFF_SENT")) {
           setStatus("فرمان توقف همه تست‌ها ارسال شد؛ تأیید ECU در انتظار است");
         } else if (message.equals("BOSCH_ECU_CONNECTED")) {
-          setStatus("پاسخ K-Line دریافت شد؛ در حال خواندن پارامترهای بوش");
-          if (autoDetectionActive && autoDetectionStage == 1) sendBoschKey('6');
-          else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) sendBoschKey('6');
+          setStatus("پاسخ K-Line بوش دریافت شد؛ در حال خواندن پارامترها");
+          if (autoDetectionActive && autoDetectionStage == 1) {
+            sendBoschKey('6');
+            finishAutomaticDetection("ECU بوش روی K-Line شناسایی شد؛ پارامترهای زنده در حال دریافت‌اند");
+          } else if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) sendBoschKey('6');
         } else if (message.equals("BOSCH_ECU_CONNECTION_FAILED")) {
           setStatus("اتصال ECU بوش برقرار نشد؛ سوئیچ، سیم K-Line و پروفایل را بررسی کنید");
           if (autoDetectionActive && autoDetectionStage == 1) beginAutomaticDetectionStage(2);
         } else if (message.equals("ECU_CONNECTED")) {
-          setStatus("اتصال K-Line برقرار شد؛ منتظر پارامترهای زیمنس هستم");
+          setStatus("اتصال K-Line زیمنس برقرار شد؛ دریافت پارامترها ادامه دارد");
+          if (autoDetectionActive && autoDetectionStage == 2)
+            finishAutomaticDetection("ECU زیمنس روی K-Line شناسایی شد؛ پارامترهای زنده در حال دریافت‌اند");
         } else if (message.equals("ECU_CONNECTION_FAILED")) {
           setStatus("اتصال K-Line زیمنس برقرار نشد؛ سیم‌بندی و برق ECU را بررسی کنید");
+          if (autoDetectionActive && autoDetectionStage == 2) beginAutomaticDetectionStage(3);
         } else if (message.equals("BOSCH_PARAMETER_READ_FAILED")) {
           setStatus("ECU بوش وصل شد، اما دریافت پارامتر ناموفق بود؛ وضعیت اتصال و پروفایل را بررسی کنید");
         } else if (message.equals("BOSCH_DTC_CLEAR_NOT_CONFIRMED")) {
