@@ -1229,8 +1229,12 @@ public class MainActivity extends Activity {
       String[] sharedProfiles = {
         "زیمنس پراید • پروفایل فعال",
         "بوش زامیاد 7.9.7.1 • پروفایل فعال",
-        "عظام SB13 بنزینی یورو ۵ • پروفایل فعال CAN"
+        "عظام SB13 بنزینی یورو ۵ • پروفایل فعال CAN",
+        "والئو PL4_S1C • پروفایل فعال با فریم‌ور PL4"
       };
+      if ("ایران خودرو".equals(brand) || "پژو".equals(brand))
+        return new String[]{sharedProfiles[3], sharedProfiles[0], sharedProfiles[1], sharedProfiles[2],
+          "Bosch ME7.4.4 / ME7.4.5", "Sagem S2000 / SL96"};
       if ("زامیاد".equals(brand))
         return new String[]{sharedProfiles[2], sharedProfiles[1], sharedProfiles[0], "بوش M7.9.7.1", "زیمنس زامیاد بنزینی"};
       if ("سایپا".equals(brand))
@@ -1506,6 +1510,13 @@ public class MainActivity extends Activity {
     if (requested.startsWith("بوش زامیاد 7.9.7.1")) {
       selectedEcu = "بوش زامیاد 7.9.7.1";
       startSelectedEcu("!PROFILE:BOSCH", "!6", boschZamyadSection);
+      return;
+    }
+    if (requested.startsWith("والئو PL4_S1C")) {
+      selectedEcu="والئو PL4_S1C";
+      preferences.edit().putString("yasir.lastEcu",selectedEcu).apply();
+      disconnect(); // one active TCP tester per K-Line session
+      startActivity(new Intent(this,Pl4Activity.class));
       return;
     }
     if (requested.startsWith("زیمنس پراید")) {
