@@ -1383,6 +1383,7 @@ void setup() {
 
 // ESP bridge commands are newline-delimited ASCII, e.g. !PROFILE:PL4, !1, !2.
 // Never interpret an unsupported profile as a PL4 command.
+static bool pl4ProfileSelected=false;
 static char pl4BridgeLine[48];
 static uint8_t pl4BridgeLineLength=0;
 
@@ -1435,11 +1436,14 @@ static void pl4Command(char command, bool fromPhone) {
 static void pl4PhoneLine() {
   pl4BridgeLine[pl4BridgeLineLength]='\0';
   if(!strcmp(pl4BridgeLine,"!PROFILE:PL4")) {
+    pl4ProfileSelected=true;
     pl4WebStatus("PROFILE_PL4_SELECTED");
   } else if(pl4BridgeLine[0]=='!' && pl4BridgeLine[1] &&
             pl4BridgeLine[2]=='\0') {
-    pl4Command(pl4BridgeLine[1],true);
+    if (pl4ProfileSelected) pl4Command(pl4BridgeLine[1],true);
+    else pl4WebStatus("PROFILE_UNSUPPORTED_IN_PL4_FIRMWARE");
   } else if(pl4BridgeLine[0]=='!' && !strncmp(pl4BridgeLine,"!PROFILE:",9)) {
+    pl4ProfileSelected=false;
     pl4WebStatus("PROFILE_UNSUPPORTED_IN_PL4_FIRMWARE");
   } else if(pl4BridgeLineLength) {
     pl4WebStatus("PL4_INVALID_COMMAND");
