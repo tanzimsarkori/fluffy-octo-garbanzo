@@ -21,6 +21,7 @@ final class Pl4Controller {
   final StringBuilder report=new StringBuilder();
   final ExecutorService writer=Executors.newSingleThreadExecutor();
   volatile boolean selected=false;
+  volatile boolean legacyBlocked=false;
   volatile int generation=0;
   boolean ready=false, liveOn=false, busy=false, eraseAccepted=false;
   int phase=0, operation=0;
@@ -95,7 +96,7 @@ final class Pl4Controller {
   void reset(){generation++;phase=0;ready=false;liveOn=false;busy=false;operation++;}
   void select(){
     if(selected&&busy){status("منتظر پایان عملیات جاری بمانید");return;}
-    reset();selected=true;
+    reset();selected=true;legacyBlocked=true;
     a.selectedEcu="والئو PL4_S1C";a.ecuActionsShownForCurrentConnection=false;
     a.autoDetectionActive=false;a.autoDetectionToken++;
     a.pendingProfileCommand="";a.pendingPostConnectCommand="";a.scanAfterTcpConnect=false;
@@ -197,6 +198,7 @@ final class Pl4Controller {
   }
   boolean packet(JSONObject j){
     String m=j.optString("message",""),type=j.optString("type","");
+    if(!selected && (m.equals("PROFILE_SIEMENS_SELECTED") || m.equals("PROFILE_BOSCH_SELECTED") || m.equals("PROFILE_SB13_CAN_SELECTED"))) legacyBlocked=false;
     boolean ours="valeo_pl4_s1c".equals(j.optString("profile"))||m.startsWith("PL4_")||m.equals("PROFILE_PL4_SELECTED");
     if(!ours)return false;if(!selected)return true;
     if(m.equals("PROFILE_PL4_SELECTED")&&phase==1){
@@ -255,5 +257,6 @@ final class Pl4Controller {
     }
     return true;
   }
+  boolean allowsLegacy(String cmd){return !selected && (!legacyBlocked || cmd.startsWith("!PROFILE:"));}
   void shutdown(){selected=false;reset();writer.shutdownNow();}
 }
