@@ -34,8 +34,8 @@ public class MainActivity extends Activity {
   volatile boolean running = false;
   volatile int connectionEpoch = 0;
   int malformedFrames = 0, telemetryFrames = 0, prideFrames = 0;
-  Socket socket;
-  OutputStream out;
+  volatile Socket socket;
+  volatile OutputStream out;
   TextView status, lastDiagnosticStatus, rpm, coolant, intake, battery, map, injectors, spark, dtc;
   // Keep the top connection badge at a fixed size and show only real TCP state.
   final Runnable showRealTcpLoss = () -> displayTcpBadge(false);
@@ -654,15 +654,13 @@ public class MainActivity extends Activity {
     applyFontScale(root);
     show(home);
     final String restoreKey = "home";
-    selectedBrand = "نیسان زامیاد";
-    selectedSystemType = "بنزینی و دوگانه‌سوز";
-    selectedEcu = "SB13";
-    preferences.edit().putString("yasir.lastBrand", selectedBrand)
-        .putString("yasir.lastEcu", selectedEcu).putString("yasir.lastScreen", "home").apply();
-    if ("بوش زامیاد 7.9.7.1".equals(selectedEcu)) pendingProfileCommand = "!PROFILE:BOSCH";
-    else if ("SB13".equals(selectedEcu)) pendingProfileCommand = "!PROFILE:SB13_CAN";
-    else if ("زیمنس پراید".equals(selectedEcu) || "زیمنس SIM2K-34VR".equals(selectedEcu))
-      pendingProfileCommand = "!PROFILE:SIEMENS";
+    // Opening the app or connecting Wi-Fi must NOT select an ECU.
+    selectedBrand = "";
+    selectedSystemType = "";
+    selectedEcu = "";
+    pendingProfileCommand = "";
+    pendingPostConnectCommand = "";
+    scanAfterTcpConnect = false;
     final LinearLayout restoreScreen = home;
     show(restoreScreen);
     final int savedY = b == null ? 0 : b.getInt("yasir.scroll", 0);
@@ -1916,12 +1914,13 @@ public class MainActivity extends Activity {
   }
 
   void applyThemeToViews(View view) {
+    if ("pl4-fixed-theme".equals(view.getTag())) return;
     root.setBackgroundColor(pageBackground());
     getWindow().setStatusBarColor(navy);
     if (view instanceof TextView) {
       TextView tv = (TextView)view;
       tv.setTextColor(foregroundColor());
-      if (tv == status) tv.setTextColor(teal);
+      if (tv == status) tv.setTextColor(tcpLive ? Color.rgb(83,224,183) : Color.rgb(238,181,117));
       if (tv == updateInfo) tv.setTextColor(teal);
       if (view instanceof Button) {
         ((Button)view).setBackgroundTintList(android.content.res.ColorStateList.valueOf(
@@ -1955,7 +1954,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.6.2\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.7.6\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -2016,9 +2015,7 @@ public class MainActivity extends Activity {
     ui.post(() -> {
       if (exiting || status == null) return;
       ui.removeCallbacks(showRealTcpLoss);
-      if (connected) displayTcpBadge(true);
-      else if (delayDisconnect) ui.postDelayed(showRealTcpLoss, 2000);
-      else displayTcpBadge(false);
+      displayTcpBadge(tcpLive);
     });
   }
 
@@ -2104,8 +2101,9 @@ public class MainActivity extends Activity {
     throw new IOException("گوشی به Wi-Fi E-MAX وصل نیست");
   }
 
-  void connect() {
-    disconnect();
+  synchronized void connect() {
+    // One persistent TCP worker. Selecting an ECU must not restart the socket.
+    if (running) return;
     final int epoch = ++connectionEpoch;
     running = true;
     setStatus("در حال اتصال از مسیر Wi-Fi به E-MAX ...");
@@ -2113,6 +2111,7 @@ public class MainActivity extends Activity {
       int attempts = 0;
       while (running && connectionEpoch == epoch) {
         Socket s = null;
+        String tcpLossDetail = "دستگاه اتصال را بست (EOF)";
         try {
           attempts++;
           s = createEspSocketOnWifi();
@@ -2177,7 +2176,7 @@ public class MainActivity extends Activity {
             }
             final int packetEpoch = epoch;
             ui.post(() -> {
-              if (running && connectionEpoch == packetEpoch) parse(received);
+              if (running && connectionEpoch == packetEpoch && socket == activeSocket && tcpLive) parse(received);
             });
           }
           if (running && connectionEpoch == epoch)
@@ -2187,18 +2186,20 @@ public class MainActivity extends Activity {
             String detail = e.getMessage();
             if (detail == null || detail.trim().isEmpty())
               detail = e.getClass().getSimpleName();
+            tcpLossDetail=detail;
             setStatus("اتصال TCP قطع یا ناموفق؛ تلاش مجدد (" + detail + ")");
           }
         } finally {
           synchronized (this) {
-            if (socket == s) {
+            if (s != null && socket == s) {
               try { if (socket != null) socket.close(); } catch (Exception ignored) {}
               socket = null;
               out = null;
               tcpLive = false;
               if (running && connectionEpoch == epoch)
-                updateTcpBadge(false, true);
-              if(pl4!=null && pl4.selected) ui.post(() -> {if(pl4.selected && !tcpLive)pl4.tcpLost();});
+                updateTcpBadge(false, false);
+              final String lossReason=tcpLossDetail;
+              if(pl4!=null && pl4.selected) ui.post(() -> {if(running && connectionEpoch==epoch && pl4.selected && !tcpLive)pl4.tcpLost(lossReason);});
             } else {
               try { if (s != null) s.close(); } catch (Exception ignored) {}
             }
@@ -2562,13 +2563,13 @@ public class MainActivity extends Activity {
 
 
   void sendPrideDeliveryReport(final int cycle, final int count) {
-    if (cycle < 0) return;
+    if (cycle < 0 || (pl4!=null && !pl4.allowsLegacy("@"))) return;
     // Acknowledgment is written to the same Wi-Fi TCP link as ECU commands,
     // but does not trigger a K-line command or delay the UI thread.
     prideAckWorker.execute(() -> {
       try {
         synchronized (this) {
-          if (socket == null || socket.isClosed() || out == null) return;
+          if (socket == null || socket.isClosed() || out == null || (pl4!=null && !pl4.allowsLegacy("@"))) return;
           out.write(("@" + cycle + "," + count + "\n").getBytes("US-ASCII"));
           out.flush();
         }
