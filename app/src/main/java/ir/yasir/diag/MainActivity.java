@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
   String lastUiStatus = "";
   long lastUiStatusAt = 0;
   boolean tcpLive = false;
+  Pl4Controller pl4;
   volatile boolean scanAfterTcpConnect = false;
   boolean autoDetectionActive = false;
   boolean autoCanConnected = false;
@@ -299,6 +300,7 @@ public class MainActivity extends Activity {
     settingsSection = section("تنظیمات ظاهری و برنامه");
     updateSection = section("به‌روزرسانی برنامه");
     helpSection = section("راهنما و اطلاعات برنامه");
+    pl4 = new Pl4Controller(this);
 
     content = home;
     content.addView(sectionTitle("انتخاب سازنده خودرو", "برند خودرو را انتخاب کنید تا ECU و یونیت‌ها را ببینید", "▣"));
@@ -1229,13 +1231,14 @@ public class MainActivity extends Activity {
       String[] sharedProfiles = {
         "زیمنس پراید • پروفایل فعال",
         "بوش زامیاد 7.9.7.1 • پروفایل فعال",
-        "عظام SB13 بنزینی یورو ۵ • پروفایل فعال CAN"
+        "عظام SB13 بنزینی یورو ۵ • پروفایل فعال CAN",
+        "والئو PL4_S1C • پروفایل فعال"
       };
       if ("زامیاد".equals(brand))
         return new String[]{sharedProfiles[2], sharedProfiles[1], sharedProfiles[0], "بوش M7.9.7.1", "زیمنس زامیاد بنزینی"};
       if ("سایپا".equals(brand))
         return new String[]{sharedProfiles[0], sharedProfiles[1], sharedProfiles[2], "ساژم پراید SL96", "زیمنس دوگانه‌سوز"};
-      return new String[]{sharedProfiles[0], sharedProfiles[1], sharedProfiles[2],
+      return new String[]{sharedProfiles[3], sharedProfiles[0], sharedProfiles[1], sharedProfiles[2],
         "Bosch ME7.4.4 / ME7.4.5", "Siemens SIM2K-34VR", "Sagem S2000 / SL96"};
     }
     if (system.contains("ABS")) return new String[]{"Bosch ABS", "Continental / Teves ABS", "Mando ABS", "ATE ABS"};
@@ -1497,6 +1500,8 @@ public class MainActivity extends Activity {
 
   void chooseEcu(String ecu) {
     String requested = ecu == null ? "" : ecu.trim();
+    if(requested.startsWith("والئو PL4_S1C")) { pl4.select(); return; }
+    if(pl4!=null && pl4.selected)pl4.leave();
     if (requested.equals("SB13") || requested.startsWith("عظام SB13 بنزینی")) {
       selectedEcu = "SB13";
       seedSb13ParameterRows();
@@ -1536,6 +1541,7 @@ public class MainActivity extends Activity {
   }
 
   String screenKey(LinearLayout screen) {
+    if(pl4!=null && pl4.owns(screen))return pl4.key(screen);
     if (screen == prideSiemensSection) return "pride";
     if (screen == boschZamyadSection) return "boschZamyad";
     if (screen == boschServiceSection) return "boschService";
@@ -1585,6 +1591,11 @@ public class MainActivity extends Activity {
   }
 
   void show(LinearLayout screen) {
+    if(pl4!=null && pl4.selected && !pl4.owns(screen)) {
+      if(pl4.busy || pl4.liveOn){pl4.status("ابتدا به منوی والئو بازگردید");return;}
+      if(screen==dtcSection || screen==diagnosticMenu || screen==parametersMenu || screen==actuatorSection || screen==ecuSection){screen=pl4.ready?pl4.menu:pl4.connecting;}
+      else pl4.leave();
+    }
     if (screen == null || currentScreen == screen) return;
     if (scrollContainer != null && currentScreen != null) {
       screenScrollPositions.put(screenKey(currentScreen), scrollContainer.getScrollY());
@@ -1592,7 +1603,7 @@ public class MainActivity extends Activity {
     }
     currentScreen = screen;
     activeScreenKey = screenKey(screen);
-    boolean compactBlueWorkshop = screen == sb13CanSection || screen == dynamicParametersSection || screen == autoSearchSection;
+    boolean compactBlueWorkshop = screen == sb13CanSection || screen == dynamicParametersSection || screen == autoSearchSection || (pl4!=null && pl4.owns(screen));
     if (appBrandHeader != null)
       appBrandHeader.setVisibility(compactBlueWorkshop ? View.GONE : View.VISIBLE);
     screen.setVisibility(View.VISIBLE);
@@ -1602,8 +1613,9 @@ public class MainActivity extends Activity {
     if (scrollContainer != null) {
       final int position = screenScrollPositions.containsKey(activeScreenKey) ?
           screenScrollPositions.get(activeScreenKey) : 0;
+      final LinearLayout scrollTarget=screen;
       scrollContainer.post(() -> {
-        if (currentScreen == screen) scrollContainer.scrollTo(0, position);
+        if (currentScreen == scrollTarget) scrollContainer.scrollTo(0, position);
       });
     }
   }
@@ -1690,6 +1702,9 @@ public class MainActivity extends Activity {
   }
 
   @Override public void onBackPressed() {
+    if(pl4!=null && pl4.selected && pl4.owns(currentScreen)){
+      if(currentScreen==pl4.menu||currentScreen==pl4.connecting)pl4.catalog();else pl4.back();return;
+    }
     if (isIdentifiedEcuSubPage()) show(diagnosticMenu);
     else if(currentScreen == home) super.onBackPressed();
     else if(currentScreen == ecuSelectionSection) show(systemSelectionSection);
@@ -1882,6 +1897,7 @@ public class MainActivity extends Activity {
   }
 
   void applyThemeToViews(View view) {
+    if("pl4-fixed-theme".equals(view.getTag()))return;
     root.setBackgroundColor(pageBackground());
     getWindow().setStatusBarColor(navy);
     if (view instanceof TextView) {
@@ -1921,7 +1937,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.6.2\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.7.8\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -2096,16 +2112,19 @@ public class MainActivity extends Activity {
           }
           updateTcpBadge(true, false);
           setStatus("TCP به E-MAX برقرار شد؛ اتصال ECU را بزنید");
+          if (pl4!=null && pl4.selected) {
+            ui.post(() -> {if(running && connectionEpoch==epoch && pl4.selected)pl4.begin();});
+          } else {
           if (!pendingProfileCommand.isEmpty()) {
             final String profileCmd = pendingProfileCommand;
             pendingProfileCommand = "";
             ui.postDelayed(() -> {
-              if (running && connectionEpoch == epoch) send(profileCmd);
+              if (running && connectionEpoch == epoch && (pl4==null||!pl4.selected)) send(profileCmd);
             }, 180);
           }
           if (scanAfterTcpConnect) {
             ui.postDelayed(() -> {
-              if (running && connectionEpoch == epoch) {
+              if (running && connectionEpoch == epoch && (pl4==null||!pl4.selected)) {
                 send("!1");
                 if (autoDetectionActive) {
                   setStatus("ارتباط دستگاه برقرار شد؛ مرحلهٔ اول شناسایی ECU شروع شد");
@@ -2122,6 +2141,7 @@ public class MainActivity extends Activity {
             }, 520);
           }
 
+          }
           BufferedReader reader =
               new BufferedReader(new InputStreamReader(s.getInputStream(), "UTF-8"));
           String line;
@@ -2155,6 +2175,7 @@ public class MainActivity extends Activity {
               tcpLive = false;
               if (running && connectionEpoch == epoch)
                 updateTcpBadge(false, true);
+              if(pl4!=null && pl4.selected)ui.post(()->{if(pl4.selected&&!tcpLive)pl4.tcpLost();});
             } else {
               try { if (s != null) s.close(); } catch (Exception ignored) {}
             }
@@ -2600,6 +2621,8 @@ public class MainActivity extends Activity {
   void parse(String line) {
     try {
       JSONObject j = new JSONObject(line);
+      if(pl4!=null && pl4.packet(j))return;
+      if(pl4!=null && pl4.selected)return;
       if ("p".equals(j.optString("t"))) {
         updateCompactPride(j);
         if (autoDetectionActive && autoDetectionStage == 2) {
@@ -2861,6 +2884,7 @@ public class MainActivity extends Activity {
   }
 
   void disconnect() {
+    if(pl4!=null && pl4.selected)pl4.reset();
     updateTcpBadge(false, false);
     tcpLive = false;
     connectionEpoch++;
