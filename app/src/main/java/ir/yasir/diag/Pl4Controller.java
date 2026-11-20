@@ -39,7 +39,8 @@ final class Pl4Controller {
     LinearLayout old=a.content;
     connecting=screen("VALEO PL4_S1C","اتصال مستقیم K-Line");
     connectionStatus=statusField("در حال برقراری ارتباط...");
-    row(connecting,"اتصال مجدد در صورت خطا","ECU",this::select);
+    row(connecting,"تلاش مجدد","ECU",this::select);
+    row(connecting,"آزمایش پل STM32 / ESP","LINK",this::ping);
     row(connecting,"بازگشت به انتخاب ECU","‹",this::catalog);
 
     menu=screen("VALEO PL4_S1C","منوی عیب‌یابی موتور");
@@ -83,7 +84,28 @@ final class Pl4Controller {
     TextView t=a.text(message,14,true);t.setTextColor(Color.rgb(185,224,255));
     t.setGravity(android.view.Gravity.CENTER);a.content.addView(t);return t;
   }
-  void row(LinearLayout p,String name,String icon,Runnable action){a.blueWorkshopRow(p,name,icon,action);}
+  // Dedicated high-contrast scanner menu; the theme must not recolor the icon.
+  void row(LinearLayout p,String name,String icon,Runnable action){
+    LinearLayout r=new LinearLayout(a); r.setTag("pl4-fixed-theme");
+    r.setOrientation(LinearLayout.HORIZONTAL);
+    r.setLayoutDirection(android.view.View.LAYOUT_DIRECTION_RTL);
+    r.setGravity(android.view.Gravity.CENTER_VERTICAL);
+    r.setPadding(a.dp(10),a.dp(7),a.dp(10),a.dp(7));
+    r.setBackground(a.panelDrawable(Color.rgb(18,44,65),Color.rgb(43,78,100),7));
+    TextView badge=a.text(icon,icon.length()>3?10:15,true);
+    badge.setGravity(android.view.Gravity.CENTER);badge.setTextColor(Color.rgb(100,226,212));
+    badge.setBackground(a.panelDrawable(Color.rgb(9,28,43),Color.rgb(56,96,111),5));
+    r.addView(badge,new LinearLayout.LayoutParams(a.dp(52),a.dp(44)));
+    TextView title=a.text(name,16,true);
+    title.setGravity(android.view.Gravity.CENTER_VERTICAL|android.view.Gravity.RIGHT);
+    title.setTextColor(Color.rgb(240,247,251));
+    r.addView(title,new LinearLayout.LayoutParams(0,a.dp(44),1));
+    TextView arrow=a.text("‹",22,true);arrow.setTextColor(Color.rgb(128,174,191));
+    r.addView(arrow,new LinearLayout.LayoutParams(a.dp(24),a.dp(44)));
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,a.dp(66));
+    lp.setMargins(0,0,0,a.dp(7));p.addView(r,lp);
+    r.setOnClickListener(v->action.run());
+  }
   boolean owns(LinearLayout x){return x!=null&&(x==connecting||x==menu||x==live||x==faults||x==actuators);}
   String key(LinearLayout x){
     if(x==connecting)return "pl4Connecting";if(x==menu)return "pl4Menu";if(x==live)return "pl4Live";
@@ -110,20 +132,38 @@ final class Pl4Controller {
   }
   void begin(){
     if(!selected||!a.tcpLive||phase!=0||ready)return;
-    phase=1;status("TCP متصل است؛ انتخاب پروفایل PL4...");write("!PROFILE:PL4");
+    phase=3;
+    status("TCP متصل • ارسال فرمان مستقیم به STM32");
+    write("!PL4:CONNECT");
     final int g=generation;
-    a.ui.postDelayed(()->{if(selected&&generation==g&&phase==1){
-      phase=0;status("پاسخ انتخاب پروفایل نرسید؛ فریم‌ور V53 و پل ESP را بررسی کنید.");
-    }},7000);
+    // V53 fallback only if our TCP socket stays open and no V54 ACK is seen.
+    a.ui.postDelayed(()->{if(selected&&generation==g&&phase==3&&a.tcpLive){
+      phase=1;
+      status("پاسخ V54 دریافت نشد؛ بررسی سازگاری با V53...");
+      write("!PROFILE:PL4");
+      a.ui.postDelayed(()->{if(selected&&generation==g&&phase==1){
+        phase=0;status("TCP متصل، اما پاسخ UART از STM32 نرسید. فریم‌ور V54 و ESP-01 را بررسی کنید.");
+      }},6000);
+    }},3500);
+    a.ui.postDelayed(()->{if(selected&&generation==g&&(phase==2||phase==4)){
+      phase=0;status("STM32 فرمان را دریافت کرد اما پاسخ معتبر ECU نرسید؛ برق، سوئیچ و K-Line را بررسی کنید.");
+    }},16000);
   }
-  void tcpLost(){
+  void ping(){
+    if(!a.tcpLive){status("TCP قطع است؛ ابتدا اتصال Wi-Fi دستگاه را بررسی کنید");return;}
+    if(busy){status("منتظر پایان عملیات جاری بمانید");return;}
+    status("ارسال !PING به STM32؛ منتظر پاسخ V54...");
+    write("!PING");
+  }
+  void tcpLost(){tcpLost("اتصال TCP از سمت دستگاه بسته شد");}
+  void tcpLost(String detail){
     if(!selected)return;
-    reset();status("TCP قطع شد؛ در حال تلاش برای اتصال مجدد...");a.show(connecting);
+    reset();status("TCP قطع • "+detail+"؛ تلاش مجدد...");a.show(connecting);
   }
   void write(String command){
     final int g=generation,epoch=a.connectionEpoch;
     final Socket socket=a.socket;
-    if(socket==null||!a.tcpLive){tcpLost();return;}
+    if(socket==null||!a.tcpLive){tcpLost("سوکت آماده نیست");return;}
     writer.execute(()->{
       try{
         synchronized(a){
@@ -132,7 +172,7 @@ final class Pl4Controller {
           a.out.write((command+"\n").getBytes("US-ASCII"));a.out.flush();
         }
       }catch(Exception e){a.ui.post(()->{if(selected&&generation==g){
-        tcpLost();status("ارسال ناموفق: "+e.getMessage());
+        tcpLost("ارسال ناموفق: "+e.getMessage());
       }});}
     });
   }
@@ -199,16 +239,20 @@ final class Pl4Controller {
   boolean packet(JSONObject j){
     String m=j.optString("message",""),type=j.optString("type","");
     if(!selected && (m.equals("PROFILE_SIEMENS_SELECTED") || m.equals("PROFILE_BOSCH_SELECTED") || m.equals("PROFILE_SB13_CAN_SELECTED"))) legacyBlocked=false;
-    boolean ours="valeo_pl4_s1c".equals(j.optString("profile"))||m.startsWith("PL4_")||m.equals("PROFILE_PL4_SELECTED");
+    boolean ours="valeo_pl4_s1c".equals(j.optString("profile"))||m.startsWith("PL4_")||m.equals("PROFILE_PL4_SELECTED")||m.equals("STM32_V54_READY");
     if(!ours)return false;if(!selected)return true;
-    if(m.equals("PROFILE_PL4_SELECTED")&&phase==1){
+    if(m.equals("STM32_V54_READY")){
+      if(phase==0)status("ارتباط UART با STM32 V54 تأیید شد؛ انتخاب والئو را دوباره بزنید");
+    }else if(m.equals("PL4_CONNECTING")&&phase==3){
+      phase=4;status("STM32 فرمان را دریافت کرد؛ در حال Fast Init والئو...");
+    }else if(m.equals("PROFILE_PL4_SELECTED")&&phase==1){
       phase=2;status("پروفایل تأیید شد؛ در حال اتصال مستقیم ECU...");write("!1");
       final int g=generation;
       a.ui.postDelayed(()->{if(selected&&generation==g&&phase==2){phase=0;status("ECU پاسخ اتصال نداد؛ برق، سوئیچ و K-Line را بررسی کنید.");}},9000);
-    }else if(m.equals("PL4_ECU_CONNECTED")&&phase==2&&a.tcpLive){
+    }else if(m.equals("PL4_ECU_CONNECTED")&&(phase==2||phase==3||phase==4)&&a.tcpLive){
       phase=0;ready=true;busy=false;liveOn=false;status("ECU متصل شد • PL4_S1C");a.show(menu);
     }else if(m.equals("PL4_ECU_CONNECTION_FAILED")||m.equals("PL4_NOT_CONNECTED")||m.equals("PL4_ECU_DISCONNECTED")){
-      reset();status("اتصال ECU تأیید نشد؛ اتصال مجدد را انتخاب کنید");a.show(connecting);
+      reset();status("TCP برقرار است، اما ECU پاسخ معتبر C1 نداد؛ سوئیچ، تغذیه و K-Line را بررسی کنید");a.show(connecting);
     }else if(type.equals("parameters")&&ready&&liveOn){
       JSONArray p=j.optJSONArray("parameters");
       if(p!=null)for(int i=0;i<p.length();i++){
