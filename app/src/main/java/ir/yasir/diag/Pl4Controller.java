@@ -6,11 +6,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import org.json.JSONObject;
 import org.json.JSONArray;
-import java.net.Socket;
-import java.util.LinkedHashMap;
+ import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutorService;
 
 /** PL4 UI and state machine. All traffic uses MainActivity's existing TCP socket. */
 final class Pl4Controller {
@@ -19,7 +16,9 @@ final class Pl4Controller {
   final TextView connectionStatus, menuStatus, liveStatus, faultStatus, actuatorStatus, faultText;
   final Map<String,TextView> values=new LinkedHashMap<>();
   final StringBuilder report=new StringBuilder();
-  final ExecutorService writer=Executors.newSingleThreadExecutor();
+  final TextView wireTrace;
+  boolean crlf=false, pingWaiting=false;
+  int pingSequence=0;
   volatile boolean selected=false;
   volatile boolean legacyBlocked=false;
   volatile int generation=0;
@@ -39,6 +38,8 @@ final class Pl4Controller {
     LinearLayout old=a.content;
     connecting=screen("VALEO PL4_S1C","اتصال مستقیم K-Line");
     connectionStatus=statusField("در حال برقراری ارتباط...");
+    wireTrace=statusField("TX —   |   RX —");
+    wireTrace.setTextSize(12);
     row(connecting,"تلاش مجدد","ECU",this::select);
     row(connecting,"آزمایش پل STM32 / ESP","LINK",this::ping);
     row(connecting,"بازگشت به انتخاب ECU","‹",this::catalog);
@@ -115,9 +116,9 @@ final class Pl4Controller {
     a.setStatus(msg);
     for(TextView t:new TextView[]{connectionStatus,menuStatus,liveStatus,faultStatus,actuatorStatus})t.setText(msg);
   }
-  void reset(){generation++;phase=0;ready=false;liveOn=false;busy=false;operation++;}
+  void reset(){generation++;phase=0;ready=false;liveOn=false;busy=false;pingWaiting=false;pingSequence++;crlf=false;operation++;}
   void select(){
-    if(selected&&busy){status("منتظر پایان عملیات جاری بمانید");return;}
+    if(selected&&(busy||phase!=0)){status("منتظر پایان اتصال یا عملیات جاری بمانید");return;}
     reset();selected=true;legacyBlocked=true;
     a.selectedEcu="والئو PL4_S1C";a.ecuActionsShownForCurrentConnection=false;
     a.autoDetectionActive=false;a.autoDetectionToken++;
@@ -125,55 +126,62 @@ final class Pl4Controller {
     a.preferences.edit().putString("yasir.lastEcu",a.selectedEcu).apply();
     for(TextView t:values.values())t.setText("—");
     report.setLength(0);faultText.setText("—");
-    a.show(connecting);status("در حال اتصال مستقیم به والئو PL4...");
+    a.show(connecting);wireTrace.setText("TX —  |  RX —");status("در حال اتصال مستقیم به والئو PL4...");
     if(a.tcpLive&&a.socket!=null&&!a.socket.isClosed())begin();
     else if(!a.running)a.connect();
     else status("در انتظار اتصال TCP به دستگاه...");
   }
   void begin(){
     if(!selected||!a.tcpLive||phase!=0||ready)return;
-    phase=3;
-    status("TCP متصل • ارسال فرمان مستقیم به STM32");
-    write("!PL4:CONNECT");
+    phase=1;crlf=false;
+    status("TCP متصل • انتخاب پروفایل والئو");
+    write("!PROFILE:PL4");
     final int g=generation;
-    // V53 fallback only if our TCP socket stays open and no V54 ACK is seen.
-    a.ui.postDelayed(()->{if(selected&&generation==g&&phase==3&&a.tcpLive){
-      phase=1;
-      status("پاسخ V54 دریافت نشد؛ بررسی سازگاری با V53...");
-      write("!PROFILE:PL4");
-      a.ui.postDelayed(()->{if(selected&&generation==g&&phase==1){
-        phase=0;status("TCP متصل، اما پاسخ UART از STM32 نرسید. فریم‌ور V54 و ESP-01 را بررسی کنید.");
-      }},6000);
-    }},3500);
-    a.ui.postDelayed(()->{if(selected&&generation==g&&(phase==2||phase==4)){
-      phase=0;status("STM32 فرمان را دریافت کرد اما پاسخ معتبر ECU نرسید؛ برق، سوئیچ و K-Line را بررسی کنید.");
-    }},16000);
+    // Try the alternate newline only for a profile selection, never for
+    // erase/actuator commands, and never connect before profile ACK.
+    a.ui.postDelayed(()->{
+      if(selected&&generation==g&&phase==1&&a.tcpLive){
+        crlf=true;status("در انتظار پاسخ STM32؛ ارسال با پایان CRLF");
+        write("!PROFILE:PL4");
+      }
+    },3000);
+    a.ui.postDelayed(()->{
+      if(selected&&generation==g&&phase==1){
+        phase=0;status("پاسخ انتخاب پروفایل از STM32 نرسید. گزارش TX/RX را بررسی کنید.");
+      }
+    },8000);
   }
   void ping(){
     if(!a.tcpLive){status("TCP قطع است؛ ابتدا اتصال Wi-Fi دستگاه را بررسی کنید");return;}
     if(busy){status("منتظر پایان عملیات جاری بمانید");return;}
-    status("ارسال !PING به STM32؛ منتظر پاسخ V54...");
-    write("!PING");
+    if(pingWaiting)return;
+    final int g=generation,p=++pingSequence;
+    pingWaiting=true;
+    status("آزمایش UART • ارسال !PING");
+    write("!PING",false);
+    a.ui.postDelayed(()->{if(selected&&generation==g&&pingWaiting&&pingSequence==p){
+      write("!PING",true);
+    }},2000);
+    a.ui.postDelayed(()->{if(selected&&generation==g&&pingWaiting&&pingSequence==p){
+      pingWaiting=false;status("پاسخ PING از STM32 دریافت نشد؛ TX فقط تأیید نوشتن در سوکت است.");
+    }},5000);
   }
   void tcpLost(){tcpLost("اتصال TCP از سمت دستگاه بسته شد");}
   void tcpLost(String detail){
     if(!selected)return;
     reset();status("TCP قطع • "+detail+"؛ تلاش مجدد...");a.show(connecting);
   }
-  void write(String command){
-    final int g=generation,epoch=a.connectionEpoch;
-    final Socket socket=a.socket;
-    if(socket==null||!a.tcpLive){tcpLost("سوکت آماده نیست");return;}
-    writer.execute(()->{
-      try{
-        synchronized(a){
-          if(!selected||generation!=g||epoch!=a.connectionEpoch||socket!=a.socket||
-            socket.isClosed()||a.out==null)return;
-          a.out.write((command+"\n").getBytes("US-ASCII"));a.out.flush();
-        }
-      }catch(Exception e){a.ui.post(()->{if(selected&&generation==g){
-        tcpLost("ارسال ناموفق: "+e.getMessage());
-      }});}
+  void write(String command){write(command,crlf);}
+  void write(String command,boolean ending){
+    final int g=generation;
+    a.queueWire(command,true,g,ending,(bytes,error)->{
+      if(!selected||generation!=g)return;
+      if(error!=null){
+        wireTrace.setText("TX ERROR: "+command+" | "+error);
+        reset();status("فرمان ارسال نشد: "+error);a.show(connecting);
+      }else{
+        wireTrace.setText("TX "+command+" | "+bytes+" bytes | "+(ending?"CRLF":"LF")+"\nدر انتظار RX");
+      }
     });
   }
   boolean canOperate(){
@@ -239,17 +247,18 @@ final class Pl4Controller {
   boolean packet(JSONObject j){
     String m=j.optString("message",""),type=j.optString("type","");
     if(!selected && (m.equals("PROFILE_SIEMENS_SELECTED") || m.equals("PROFILE_BOSCH_SELECTED") || m.equals("PROFILE_SB13_CAN_SELECTED"))) legacyBlocked=false;
-    boolean ours="valeo_pl4_s1c".equals(j.optString("profile"))||m.startsWith("PL4_")||m.equals("PROFILE_PL4_SELECTED")||m.equals("STM32_V54_READY");
+    boolean profileAck="ack".equals(type)&&"PROFILE:PL4".equals(j.optString("command"));
+    boolean ours="valeo_pl4_s1c".equals(j.optString("profile"))||m.startsWith("PL4_")||m.equals("PROFILE_PL4_SELECTED")||m.equals("STM32_V54_READY")||profileAck;
     if(!ours)return false;if(!selected)return true;
+    if(!m.isEmpty()&&!type.equals("parameters"))wireTrace.setText("RX: "+m);
     if(m.equals("STM32_V54_READY")){
-      if(phase==0)status("ارتباط UART با STM32 V54 تأیید شد؛ انتخاب والئو را دوباره بزنید");
-    }else if(m.equals("PL4_CONNECTING")&&phase==3){
-      phase=4;status("STM32 فرمان را دریافت کرد؛ در حال Fast Init والئو...");
-    }else if(m.equals("PROFILE_PL4_SELECTED")&&phase==1){
-      phase=2;status("پروفایل تأیید شد؛ در حال اتصال مستقیم ECU...");write("!1");
+      pingWaiting=false;status("پاسخ STM32 دریافت شد • ارتباط UART تأیید شد");
+    }else if((m.equals("PROFILE_PL4_SELECTED")||profileAck)&&phase==1){
+      phase=2;status("پروفایل تأیید شد؛ اتصال مستقیم ECU...");
       final int g=generation;
-      a.ui.postDelayed(()->{if(selected&&generation==g&&phase==2){phase=0;status("ECU پاسخ اتصال نداد؛ برق، سوئیچ و K-Line را بررسی کنید.");}},9000);
-    }else if(m.equals("PL4_ECU_CONNECTED")&&(phase==2||phase==3||phase==4)&&a.tcpLive){
+      a.ui.postDelayed(()->{if(selected&&generation==g&&phase==2)write("!1");},220);
+      a.ui.postDelayed(()->{if(selected&&generation==g&&phase==2){phase=0;status("STM32 پاسخ داد اما ECU پاسخ اتصال نداد؛ سوئیچ و K-Line را بررسی کنید.");}},12000);
+    }else if(m.equals("PL4_ECU_CONNECTED")&&phase==2&&a.tcpLive){
       phase=0;ready=true;busy=false;liveOn=false;status("ECU متصل شد • PL4_S1C");a.show(menu);
     }else if(m.equals("PL4_ECU_CONNECTION_FAILED")||m.equals("PL4_NOT_CONNECTED")||m.equals("PL4_ECU_DISCONNECTED")){
       reset();status("TCP برقرار است، اما ECU پاسخ معتبر C1 نداد؛ سوئیچ، تغذیه و K-Line را بررسی کنید");a.show(connecting);
@@ -302,5 +311,5 @@ final class Pl4Controller {
     return true;
   }
   boolean allowsLegacy(String cmd){return !selected && (!legacyBlocked || cmd.startsWith("!PROFILE:"));}
-  void shutdown(){selected=false;reset();writer.shutdownNow();}
+  void shutdown(){selected=false;reset();}
 }
