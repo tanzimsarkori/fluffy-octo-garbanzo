@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - feature/pl4-clean-base-v55
+      - feature/pl4-s1c-android-v19-5
       - feature/bosch-v14-3-android
 
 permissions:
