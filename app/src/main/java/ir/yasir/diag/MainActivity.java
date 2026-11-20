@@ -48,7 +48,8 @@ public class MainActivity extends Activity {
   String activeScreenKey = "home";
   String lastUiStatus = "";
   long lastUiStatusAt = 0;
-  boolean tcpLive = false;
+  volatile boolean tcpLive = false;
+  Pl4Controller pl4;
   volatile boolean scanAfterTcpConnect = false;
   boolean autoDetectionActive = false;
   boolean autoCanConnected = false;
@@ -259,7 +260,7 @@ public class MainActivity extends Activity {
     connectAction.setGravity(Gravity.CENTER);
     connectAction.setPadding(dp(5), dp(8), dp(5), dp(8));
     connectAction.setBackground(panelDrawable(Color.rgb(31, 83, 126), Color.rgb(91, 132, 165), 0));
-    connectAction.setOnClickListener(v -> connect());
+    connectAction.setOnClickListener(v -> {if(pl4!=null && pl4.selected){if(!tcpLive&&!running)connect();else if(!pl4.ready && tcpLive)pl4.select();}else if(!tcpLive)connect();});
     connectionPanel.addView(connectAction, new LinearLayout.LayoutParams(0, -2, 1.05f));
     TextView endpoint = text("E-MAX\n192.168.4.1:3333", 10, true);
     endpoint.setTextColor(Color.rgb(208, 222, 235));
@@ -292,6 +293,7 @@ public class MainActivity extends Activity {
     boschZamyadSection = section("ECU بوش زامیاد 7.9.7.1 • داده زنده آزمایشی");
     boschServiceSection = section("ECU بوش زامیاد 7.9.7.1 — خطاها و عملگرها");
     sb13CanSection = section("");
+    pl4 = new Pl4Controller(this);
     systemSelectionSection = section("انتخاب سیستم و یونیت");
     autoSearchSection = section("جستجوی خودکار ECU");
     ecuSelectionSection = section("انتخاب ECU یا یونیت");
@@ -1292,6 +1294,7 @@ public class MainActivity extends Activity {
   }
 
   void selectManualEcu(String ecu) {
+    if(pl4 != null) pl4.leave();
     selectedBrand = "نیسان زامیاد";
     selectedEcu = ecu;
     pendingProfileCommand = "!PROFILE:SB13_CAN";
@@ -1322,6 +1325,7 @@ public class MainActivity extends Activity {
   }
 
   void startAutomaticCanScan() {
+    if(pl4 != null) pl4.leave();
     ecuActionsShownForCurrentConnection = false;
     if (selectedBrand == null || selectedBrand.trim().isEmpty()) selectedBrand = "زامیاد";
     selectedEcu = "شناسایی خودکار ECU";
@@ -1475,12 +1479,14 @@ public class MainActivity extends Activity {
       try {
         synchronized (this) {
           if (out == null || socket == null || socket.isClosed()) throw new IOException("اتصال TCP برقرار نیست");
+          if(pl4 != null && pl4.selected) return;
           out.write((profile + "\n").getBytes("US-ASCII"));
           out.flush();
         }
         Thread.sleep(220);
         synchronized (this) {
           if (out == null || socket == null || socket.isClosed()) return;
+          if(pl4 != null && pl4.selected) return;
           out.write("!1\n".getBytes("US-ASCII"));
           out.flush();
         }
@@ -1488,6 +1494,7 @@ public class MainActivity extends Activity {
           Thread.sleep(1200);
           synchronized (this) {
             if (out == null || socket == null || socket.isClosed()) return;
+            if(pl4 != null && pl4.selected) return;
             out.write((liveCommand + "\n").getBytes("US-ASCII"));
             out.flush();
           }
@@ -1501,6 +1508,7 @@ public class MainActivity extends Activity {
 
   void chooseEcu(String ecu) {
     String requested = ecu == null ? "" : ecu.trim();
+    if (!requested.startsWith("والئو PL4_S1C") && pl4 != null) pl4.leave();
     if (requested.equals("SB13") || requested.startsWith("عظام SB13 بنزینی")) {
       selectedEcu = "SB13";
       seedSb13ParameterRows();
@@ -1513,10 +1521,7 @@ public class MainActivity extends Activity {
       return;
     }
     if (requested.startsWith("والئو PL4_S1C")) {
-      selectedEcu="والئو PL4_S1C";
-      preferences.edit().putString("yasir.lastEcu",selectedEcu).apply();
-      disconnect(); // one active TCP tester per K-Line session
-      startActivity(new Intent(this,Pl4Activity.class));
+      pl4.select();
       return;
     }
     if (requested.startsWith("زیمنس پراید")) {
@@ -1550,6 +1555,7 @@ public class MainActivity extends Activity {
     if (screen == prideSiemensSection) return "pride";
     if (screen == boschZamyadSection) return "boschZamyad";
     if (screen == boschServiceSection) return "boschService";
+    if(pl4!=null && pl4.owns(screen))return pl4.key(screen);
     if (screen == sb13CanSection) return "sb13Can";
     if (screen == dashboardSection) return "dashboard";
     if (screen == diagnosticMenu) return "diagnostic";
@@ -1596,6 +1602,15 @@ public class MainActivity extends Activity {
   }
 
   void show(LinearLayout screen) {
+    if(pl4!=null && pl4.selected) {
+      if(screen==diagnosticMenu || screen==dtcSection || screen==actuatorSection ||
+         screen==dynamicParametersSection || screen==parametersMenu || screen==ecuSection)
+        screen=pl4.ready?pl4.menu:pl4.connecting;
+      if(pl4.owns(currentScreen) && !pl4.owns(screen)) {
+        if(pl4.busy || pl4.liveOn) {pl4.status("ابتدا به منوی والئو بازگردید و منتظر پایان عملیات بمانید");return;}
+        pl4.leave();
+      }
+    }
     if (screen == null || currentScreen == screen) return;
     if (scrollContainer != null && currentScreen != null) {
       screenScrollPositions.put(screenKey(currentScreen), scrollContainer.getScrollY());
@@ -1603,7 +1618,7 @@ public class MainActivity extends Activity {
     }
     currentScreen = screen;
     activeScreenKey = screenKey(screen);
-    boolean compactBlueWorkshop = screen == sb13CanSection || screen == dynamicParametersSection || screen == autoSearchSection;
+    boolean compactBlueWorkshop = screen == sb13CanSection || screen == dynamicParametersSection || screen == autoSearchSection || (pl4!=null && pl4.owns(screen));
     if (appBrandHeader != null)
       appBrandHeader.setVisibility(compactBlueWorkshop ? View.GONE : View.VISIBLE);
     screen.setVisibility(View.VISIBLE);
@@ -1613,8 +1628,9 @@ public class MainActivity extends Activity {
     if (scrollContainer != null) {
       final int position = screenScrollPositions.containsKey(activeScreenKey) ?
           screenScrollPositions.get(activeScreenKey) : 0;
+      final LinearLayout scrollTarget=screen;
       scrollContainer.post(() -> {
-        if (currentScreen == screen) scrollContainer.scrollTo(0, position);
+        if (currentScreen == scrollTarget) scrollContainer.scrollTo(0, position);
       });
     }
   }
@@ -1701,6 +1717,9 @@ public class MainActivity extends Activity {
   }
 
   @Override public void onBackPressed() {
+    if(pl4!=null && pl4.selected && pl4.owns(currentScreen)) {
+      if(currentScreen==pl4.menu || currentScreen==pl4.connecting)pl4.catalog(); else pl4.back();return;
+    }
     if (isIdentifiedEcuSubPage()) show(diagnosticMenu);
     else if(currentScreen == home) super.onBackPressed();
     else if(currentScreen == ecuSelectionSection) show(systemSelectionSection);
@@ -2041,6 +2060,7 @@ public class MainActivity extends Activity {
   }
 
   void send(String command) {
+    if(pl4 != null && pl4.selected) return;
     // Never block the UI thread on a slow WiFi/TCP socket.
     new Thread(() -> {
       try {
@@ -2049,6 +2069,7 @@ public class MainActivity extends Activity {
             setStatus("اتصال TCP برقرار نیست؛ ابتدا اتصال به دستگاه را بزنید");
             return;
           }
+          if(pl4 != null && pl4.selected) return;
           // STM32 V34 expects an exclamation-mark-prefixed ASCII command.
           byte[] bytes = (command + "\n").getBytes("US-ASCII");
           out.write(bytes);
@@ -2107,6 +2128,10 @@ public class MainActivity extends Activity {
           }
           updateTcpBadge(true, false);
           setStatus("TCP به E-MAX برقرار شد؛ اتصال ECU را بزنید");
+          final Socket activeSocket=s;
+          if (pl4!=null && pl4.selected) {
+            ui.post(() -> { if(running && connectionEpoch==epoch && socket==activeSocket && pl4.selected) pl4.begin(); });
+          } else {
           if (!pendingProfileCommand.isEmpty()) {
             final String profileCmd = pendingProfileCommand;
             pendingProfileCommand = "";
@@ -2133,6 +2158,7 @@ public class MainActivity extends Activity {
             }, 520);
           }
 
+          }
           BufferedReader reader =
               new BufferedReader(new InputStreamReader(s.getInputStream(), "UTF-8"));
           String line;
@@ -2166,6 +2192,7 @@ public class MainActivity extends Activity {
               tcpLive = false;
               if (running && connectionEpoch == epoch)
                 updateTcpBadge(false, true);
+              if(pl4!=null && pl4.selected) ui.post(() -> {if(pl4.selected && !tcpLive)pl4.tcpLost();});
             } else {
               try { if (s != null) s.close(); } catch (Exception ignored) {}
             }
@@ -2611,6 +2638,8 @@ public class MainActivity extends Activity {
   void parse(String line) {
     try {
       JSONObject j = new JSONObject(line);
+      if(pl4!=null && pl4.packet(j))return;
+      if(pl4!=null && pl4.selected)return;
       if ("p".equals(j.optString("t"))) {
         updateCompactPride(j);
         if (autoDetectionActive && autoDetectionStage == 2) {
@@ -2872,6 +2901,7 @@ public class MainActivity extends Activity {
   }
 
   void disconnect() {
+    if(pl4!=null && pl4.selected)pl4.reset();
     updateTcpBadge(false, false);
     tcpLive = false;
     connectionEpoch++;
@@ -2884,6 +2914,7 @@ public class MainActivity extends Activity {
     ui.removeCallbacks(showRealTcpLoss);
     exiting = true;
     prideAckWorker.shutdownNow();
+    if(pl4!=null)pl4.shutdown();
     disconnect();
     super.onDestroy();
   }
