@@ -36,6 +36,43 @@ public class MainActivity extends Activity {
   int malformedFrames = 0, telemetryFrames = 0, prideFrames = 0;
   volatile Socket socket;
   volatile OutputStream out;
+  final java.util.concurrent.ExecutorService commandWriter =
+      java.util.concurrent.Executors.newSingleThreadExecutor();
+  interface WireResult { void complete(int bytes, String error); }
+
+  // Same byte framing and same established TCP socket for every ECU.
+  // Never silently drop a command; a stale session is reported explicitly.
+  synchronized int writeWireLocked(String command, Socket expected, int epoch, boolean crlf) throws IOException {
+    if(expected==null || expected!=socket || epoch!=connectionEpoch ||
+        !tcpLive || expected.isClosed() || out==null)
+      throw new IOException("سوکت TCP تغییر کرده یا آماده نیست");
+    byte[] bytes=DiagWire.frame(command,crlf);
+    out.write(bytes);
+    out.flush();
+    android.util.Log.d("YasirDiag", "TCP TX "+bytes.length+" bytes: "+command);
+    return bytes.length;
+  }
+
+  void queueWire(String command, boolean forPl4, int generation, boolean crlf, WireResult result) {
+    final Socket expected=socket;
+    final int epoch=connectionEpoch;
+    commandWriter.execute(()->{
+      int bytes=0;
+      String error=null;
+      try {
+        synchronized(this) {
+          if(forPl4) {
+            if(pl4==null || !pl4.selected || pl4.generation!=generation)
+              throw new IOException("درخواست والئو لغو شده است");
+          } else if(pl4!=null && !pl4.allowsLegacy(command))
+            throw new IOException("پروفایل دیگری فعال است");
+          bytes=writeWireLocked(command,expected,epoch,crlf);
+        }
+      } catch(Exception e) { error=e.getMessage()==null?e.toString():e.getMessage(); }
+      final int sent=bytes;final String detail=error;
+      ui.post(()->{if(!exiting)result.complete(sent,detail);});
+    });
+  }
   TextView status, lastDiagnosticStatus, rpm, coolant, intake, battery, map, injectors, spark, dtc;
   // Keep the top connection badge at a fixed size and show only real TCP state.
   final Runnable showRealTcpLoss = () -> displayTcpBadge(false);
@@ -1478,24 +1515,21 @@ public class MainActivity extends Activity {
         synchronized (this) {
           if (out == null || socket == null || socket.isClosed()) throw new IOException("اتصال TCP برقرار نیست");
           if(pl4 != null && pl4.selected) return;
-          out.write((profile + "\n").getBytes("US-ASCII"));
-          out.flush();
+          writeWireLocked(profile,socket,connectionEpoch,false);
         }
         Thread.sleep(220);
         for(int i=0;i<20 && pl4!=null && pl4.legacyBlocked && !pl4.selected;i++) Thread.sleep(100);
         synchronized (this) {
           if (out == null || socket == null || socket.isClosed()) return;
           if(pl4 != null && !pl4.allowsLegacy("!1")) return;
-          out.write("!1\n".getBytes("US-ASCII"));
-          out.flush();
+          writeWireLocked("!1",socket,connectionEpoch,false);
         }
         if (liveCommand != null && !liveCommand.isEmpty()) {
           Thread.sleep(1200);
           synchronized (this) {
             if (out == null || socket == null || socket.isClosed()) return;
             if(pl4 != null && !pl4.allowsLegacy(liveCommand)) return;
-            out.write((liveCommand + "\n").getBytes("US-ASCII"));
-            out.flush();
+            writeWireLocked(liveCommand,socket,connectionEpoch,false);
           }
         }
         setStatus("فرمان اتصال پروفایل " + selectedEcu + " ارسال شد");
@@ -1954,7 +1988,7 @@ public class MainActivity extends Activity {
 
   void refreshUpdateInfo() {
     if (updateInfo == null) return;
-    updateInfo.setText("نسخه نصب‌شده: 2.7.6\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
+    updateInfo.setText("نسخه نصب‌شده: 2.7.7\nبرای بررسی نسخه رسمی، دکمه «بررسی نسخه منتشرشده» را بزنید.");
   }
 
   void checkForUpdates() {
@@ -2063,29 +2097,11 @@ public class MainActivity extends Activity {
   }
 
   void send(String command) {
-    if(pl4 != null && !pl4.allowsLegacy(command)) { setStatus("ابتدا پروفایل ECU صحیح را انتخاب کنید"); return; }
-    // Never block the UI thread on a slow WiFi/TCP socket.
-    new Thread(() -> {
-      try {
-        synchronized (this) {
-          if (out == null || socket == null || socket.isClosed()) {
-            setStatus("اتصال TCP برقرار نیست؛ ابتدا اتصال به دستگاه را بزنید");
-            return;
-          }
-          if(pl4 != null && !pl4.allowsLegacy(command)) return;
-          // STM32 V34 expects an exclamation-mark-prefixed ASCII command.
-          byte[] bytes = (command + "\n").getBytes("US-ASCII");
-          out.write(bytes);
-          out.flush();
-        }
-        setStatus("فرمان " + command + " ارسال شد؛ منتظر پاسخ ECU...");
-      } catch (Exception e) {
-        setStatus("خطای ارسال " + command + ": " + e.toString());
-        closeSocket();
-      }
-    }, "yasir-command").start();
+    queueWire(command,false,0,false,(bytes,error)->{
+      if(error!=null)setStatus("خطای ارسال "+command+": "+error);
+      else setStatus("فرمان "+command+" ارسال شد؛ منتظر پاسخ ECU...");
+    });
   }
-
 
   // Wi-Fi without Internet must still be used for 192.168.4.1,
   // even when Android prefers cellular for regular Internet requests.
@@ -2921,6 +2937,7 @@ public class MainActivity extends Activity {
     ui.removeCallbacks(showRealTcpLoss);
     exiting = true;
     prideAckWorker.shutdownNow();
+    commandWriter.shutdownNow();
     if(pl4!=null)pl4.shutdown();
     disconnect();
     super.onDestroy();
