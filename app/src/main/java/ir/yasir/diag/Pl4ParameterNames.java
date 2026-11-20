@@ -36,6 +36,11 @@ public final class Pl4ParameterNames {
     LABELS.put("pl4_power_relay_raw", "رله تغذیه (خام)");
     LABELS.put("pl4_lock_raw", "قفل مرکزی (خام)");
     LABELS.put("pl4_immo_raw", "ایموبلایزر (خام)");
+    LABELS.put("pl4_ac_pressure", "فشار سامانه کولر");
+    LABELS.put("pl4_intake_thermostat_raw", "ترموستات هوای ورودی (خام)");
+    LABELS.put("pl4_coolant_alt_b11", "دمای آب (فرمول جایگزین، نیازمند تطبیق)");
+    LABELS.put("pl4_intake_alt_b12", "دمای هوا (فرمول جایگزین، نیازمند تطبیق)");
+    LABELS.put("pl4_unlock_fault_raw", "وضعیت خطای بازگشایی (خام)");
     LABELS.put("pl4_distance", "مسافت طی‌شده");
     LABELS.put("pl4_speed_disconnects", "تعداد قطع سنسور سرعت");
     LABELS.put("pl4_speed_error_time", "زمان خطای سنسور سرعت");
