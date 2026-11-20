@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - feature/bosch-v14-3-android
+      - feature/pl4-s1c-android-v19-5
 
 permissions:
   contents: read
@@ -30,12 +31,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.4'
-      - name: Build Yasir Diag 2.7.3 APK
+      - name: Build Yasir Diag 2.7.6 APK
         run: gradle --no-daemon assembleDebug
-      - name: Upload Yasir Diag 2.7.3 APK
+      - name: Upload Yasir Diag 2.7.6 APK
         uses: actions/upload-artifact@v4
         with:
-          name: YASIR-DIAG-v2.7.3-debug-apk
+          name: YASIR-DIAG-v2.7.6-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
