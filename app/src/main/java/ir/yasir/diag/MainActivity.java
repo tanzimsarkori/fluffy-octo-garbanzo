@@ -1484,9 +1484,10 @@ public class MainActivity extends Activity {
           out.flush();
         }
         Thread.sleep(220);
+        for(int i=0;i<20 && pl4!=null && pl4.legacyBlocked && !pl4.selected;i++) Thread.sleep(100);
         synchronized (this) {
           if (out == null || socket == null || socket.isClosed()) return;
-          if(pl4 != null && pl4.selected) return;
+          if(pl4 != null && !pl4.allowsLegacy("!1")) return;
           out.write("!1\n".getBytes("US-ASCII"));
           out.flush();
         }
@@ -1494,7 +1495,7 @@ public class MainActivity extends Activity {
           Thread.sleep(1200);
           synchronized (this) {
             if (out == null || socket == null || socket.isClosed()) return;
-            if(pl4 != null && pl4.selected) return;
+            if(pl4 != null && !pl4.allowsLegacy(liveCommand)) return;
             out.write((liveCommand + "\n").getBytes("US-ASCII"));
             out.flush();
           }
@@ -1687,6 +1688,7 @@ public class MainActivity extends Activity {
   // V42 firmware requires an explicit arm (!X) before a one-shot actuator ID.
   // Send both lines from one worker in order; do not spawn competing send threads.
   void sendActuatorTest(char command) {
+    if(pl4!=null && !pl4.allowsLegacy("!X"))return;
     new Thread(() -> {
       try {
         synchronized (this) {
@@ -1694,9 +1696,11 @@ public class MainActivity extends Activity {
             setStatus("اتصال TCP برقرار نیست؛ ابتدا به E-MAX وصل شوید");
             return;
           }
+          if(pl4!=null && !pl4.allowsLegacy("!X"))return;
           out.write("!X\n".getBytes("US-ASCII"));
           out.flush();
           Thread.sleep(250);
+          if(pl4!=null && !pl4.allowsLegacy("!X"))return;
           out.write(("!" + Character.toUpperCase(command) + "\n").getBytes("US-ASCII"));
           out.flush();
         }
@@ -2035,6 +2039,7 @@ public class MainActivity extends Activity {
 
   // Bosch V51 commands are raw single ASCII keys; Siemens keeps the existing ! command protocol.
   void sendBoschKey(char key) {
+    if(pl4!=null && !pl4.allowsLegacy("!B"))return;
     if (key >= 'a' && key <= 'n') key = (char)(key - 'a' + 'A');
     final char command = key;
     if ("012346ABCDEFGHIJKLMNX?".indexOf(command) < 0) {
@@ -2048,6 +2053,7 @@ public class MainActivity extends Activity {
             setStatus("اتصال TCP برقرار نیست؛ ابتدا اتصال Wi-Fi دستگاه را برقرار کنید");
             return;
           }
+          if(pl4!=null && !pl4.allowsLegacy("!B"))return;
           out.write(("!" + String.valueOf(command) + "\n").getBytes("US-ASCII"));
           out.flush();
         }
@@ -2060,7 +2066,7 @@ public class MainActivity extends Activity {
   }
 
   void send(String command) {
-    if(pl4 != null && pl4.selected) return;
+    if(pl4 != null && !pl4.allowsLegacy(command)) { setStatus("ابتدا پروفایل ECU صحیح را انتخاب کنید"); return; }
     // Never block the UI thread on a slow WiFi/TCP socket.
     new Thread(() -> {
       try {
@@ -2069,7 +2075,7 @@ public class MainActivity extends Activity {
             setStatus("اتصال TCP برقرار نیست؛ ابتدا اتصال به دستگاه را بزنید");
             return;
           }
-          if(pl4 != null && pl4.selected) return;
+          if(pl4 != null && !pl4.allowsLegacy(command)) return;
           // STM32 V34 expects an exclamation-mark-prefixed ASCII command.
           byte[] bytes = (command + "\n").getBytes("US-ASCII");
           out.write(bytes);
